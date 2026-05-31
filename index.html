@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CostPilot AI</title>
+    <meta name="description" content="Tell us what you want to achieve. CostPilot finds the smartest, cheapest way to get there.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+
+    <!-- ═══ TOAST CONTAINER ═══ -->
+    <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- ═══ NAV ═══ -->
+    <header class="nav" id="nav">
+      <div class="nav-inner">
+
+        <button class="brand" data-view="home" type="button">
+          <div class="brand-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <span class="brand-name">CostPilot <em>AI</em></span>
+        </button>
+
+        <nav class="nav-tabs" role="tablist" aria-label="App views">
+          <button class="nav-tab" role="tab" data-view="plan" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Plan
+          </button>
+          <button class="nav-tab" role="tab" data-view="compare" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Compare
+          </button>
+          <button class="nav-tab" role="tab" data-view="act" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Act
+          </button>
+          <button class="nav-tab" role="tab" data-view="life" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+            Life
+          </button>
+          <button class="nav-tab" role="tab" data-view="history" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            History
+          </button>
+        </nav>
+
+        <div class="nav-right">
+          <button class="dark-toggle" id="dark-toggle" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
+            <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+          <div class="status-pill" id="status-pill">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-label">Connecting</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </header>
+
+    <!-- ═══ VIEWS ═══ -->
+    <div class="views" id="views">
+
+      <!-- ── HOME ── -->
+      <div class="view" id="view-home">
+        <div class="home-wrap">
+          <div class="home-badge"><span class="badge-pulse"></span>Personal Economic Copilot</div>
+          <h1 class="home-title">Start with a goal.<br><span class="home-grad">Leave with a decision.</span></h1>
+          <p class="home-sub">Tell CostPilot what you want — a trip, a laptop, a move, an event. Get ranked plans with transparent cost breakdowns, trade-offs, and next actions. No searching required.</p>
+          <div class="home-cta">
+            <button class="btn-primary btn-lg" data-view="plan" type="button">
+              Start planning
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+            <button class="btn-ghost btn-lg" data-view="compare" type="button">See example plans</button>
+          </div>
+          <div class="home-cards">
+            <div class="home-card" data-view="plan" data-type="travel" tabindex="0" role="button">
+              <div class="home-card-icon icon-green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 21 4s-2 0-3.5 1.5L14 9 5.8 7.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 3.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
+              </div>
+              <strong>Travel</strong>
+              <p>Flights, stays, food and activities — complete trip plans under your budget.</p>
+              <span class="home-card-arrow">Try travel →</span>
+            </div>
+            <div class="home-card" data-view="plan" data-type="gadget" tabindex="0" role="button">
+              <div class="home-card-icon icon-blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <strong>Gadgets</strong>
+              <p>Laptop and device buying plans with warranty, resale, and discount analysis.</p>
+              <span class="home-card-arrow">Try gadget →</span>
+            </div>
+            <div class="home-card" data-view="plan" data-type="relocation" tabindex="0" role="button">
+              <div class="home-card-icon icon-gold">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </div>
+              <strong>Relocation</strong>
+              <p>Rent, deposit, moving, commute and setup costs for a new city.</p>
+              <span class="home-card-arrow">Try relocation →</span>
+            </div>
+            <div class="home-card" data-view="plan" data-type="event" tabindex="0" role="button">
+              <div class="home-card-icon icon-rose">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </div>
+              <strong>Events</strong>
+              <p>Wedding and event budgets broken down by venue, catering, decor, and logistics.</p>
+              <span class="home-card-arrow">Try events →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PLAN ── -->
+      <div class="view" id="view-plan" hidden>
+        <div class="view-inner">
+          <div class="plan-left">
+            <div class="view-header">
+              <span class="step-badge">Step 1 · Goal</span>
+              <h2>Set your goal</h2>
+              <p>Describe what you want in plain language — CostPilot finds the smartest path to get there.</p>
+            </div>
+            <form class="plan-form card" id="goal-form" novalidate>
+              <div class="persona-bar" role="tablist" aria-label="Goal type">
+                <button type="button" class="persona-btn active" data-type="travel" role="tab" aria-selected="true">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 21 4s-2 0-3.5 1.5L14 9 5.8 7.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 3.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
+                  Travel
+                </button>
+                <button type="button" class="persona-btn" data-type="gadget" role="tab" aria-selected="false">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  Gadget
+                </button>
+                <button type="button" class="persona-btn" data-type="relocation" role="tab" aria-selected="false">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  Relocation
+                </button>
+                <button type="button" class="persona-btn" data-type="event" role="tab" aria-selected="false">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  Event
+                </button>
+              </div>
+
+              <div id="dna-insight" class="dna-insight" style="display:none"></div>
+
+              <div class="field">
+                <label class="field-label" for="goal">
+                  Describe your goal
+                  <span class="intent-chip" id="intent-chip">Travel planner</span>
+                </label>
+                <textarea id="goal" class="field-textarea" rows="3" placeholder="e.g. Plan a Goa trip for 4 days under ₹25,000…">Plan a Goa trip for 4 days under ₹25,000 with good stays and low travel fatigue</textarea>
+              </div>
+
+              <div class="step-divider"><span>Step 2 · Constraints</span></div>
+
+              <div class="constraints-grid">
+                <div class="field field-full">
+                  <label class="field-label" for="budget">
+                    Budget
+                    <output class="budget-out" id="budget-output">₹25,000</output>
+                  </label>
+                  <input id="budget" type="range" class="range-slider" min="10000" max="500000" step="5000" value="25000">
+                  <div class="range-ticks"><span>₹10K</span><span>₹1L</span><span>₹2L</span><span>₹5L</span></div>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="duration">Duration (days)</label>
+                  <input id="duration" type="number" class="field-input" min="1" max="30" value="4">
+                </div>
+                <div class="field">
+                  <label class="field-label" for="origin">Starting city</label>
+                  <select id="origin" class="field-input field-select">
+                    <option>Delhi</option><option>Mumbai</option><option>Bengaluru</option>
+                    <option>Lucknow</option><option>Hyderabad</option><option>Chennai</option>
+                    <option>Kolkata</option><option>Pune</option>
+                  </select>
+                </div>
+                <div class="field field-full">
+                  <label class="field-label">Optimise for</label>
+                  <div class="priority-tabs" role="radiogroup">
+                    <label class="priority-tab"><input type="radio" name="priority" value="balanced" checked><span>Balanced</span></label>
+                    <label class="priority-tab"><input type="radio" name="priority" value="cheap"><span>Lowest cost</span></label>
+                    <label class="priority-tab"><input type="radio" name="priority" value="fast"><span>Fastest</span></label>
+                    <label class="priority-tab"><input type="radio" name="priority" value="quality"><span>Best quality</span></label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="toggle-row">
+                <label class="toggle-chip"><input type="checkbox" id="alerts" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Price alerts</label>
+                <label class="toggle-chip"><input type="checkbox" id="sustainability" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Sustainability</label>
+                <label class="toggle-chip"><input type="checkbox" id="negotiator"><span class="toggle-track"><span class="toggle-thumb"></span></span>AI Negotiator</label>
+              </div>
+
+              <button class="btn-primary btn-submit" type="submit" id="submit-button">
+                <span id="submit-label">Generate optimised plans</span>
+                <svg id="submit-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                <span class="btn-spinner" id="submit-spinner" aria-hidden="true"></span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Agent panel -->
+          <aside class="plan-right">
+            <div class="agent-panel card">
+              <div class="agent-header">
+                <span class="agent-dot" id="agent-dot"></span>
+                <span class="agent-title">AI Agent pipeline</span>
+                <span class="agent-badge" id="llm-mode">Idle</span>
+              </div>
+              <ol class="trace-list" id="trace-list">
+                <li class="trace-item idle"><span class="trace-dot"></span><span>Goal parser ready</span></li>
+                <li class="trace-item idle"><span class="trace-dot"></span><span>Research agent idle</span></li>
+                <li class="trace-item idle"><span class="trace-dot"></span><span>Cost model idle</span></li>
+                <li class="trace-item idle"><span class="trace-dot"></span><span>Optimizer idle</span></li>
+                <li class="trace-item idle"><span class="trace-dot"></span><span>Explanation agent idle</span></li>
+              </ol>
+              <div class="insight-card">
+                <span class="insight-label">Current insight</span>
+                <p id="current-insight">Submit a goal to generate live plans.</p>
+              </div>
+              <div class="agent-stats">
+                <div class="agent-stat"><span>Confidence</span><strong id="confidence-score">--</strong></div>
+                <div class="agent-stat"><span>Decision style</span><strong id="decision-style">Balanced</strong></div>
+              </div>
+              <div class="graph-section">
+                <div class="graph-label">Cost knowledge graph</div>
+                <div class="graph-nodes" id="graph-board">
+                  <span class="graph-node root">Goal</span>
+                  <span class="graph-node">Transit</span><span class="graph-node">Stay</span>
+                  <span class="graph-node">Food</span><span class="graph-node">Activities</span>
+                </div>
+              </div>
+              <div class="agent-footer" id="llm-detail">Set ANTHROPIC_API_KEY for live AI</div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- ── COMPARE ── -->
+      <div class="view" id="view-compare" hidden>
+        <div class="view-inner view-full">
+
+          <div class="compare-header">
+            <div>
+              <span class="step-badge">Step 3 · Compare routes</span>
+              <h2 id="result-title">No plan generated yet</h2>
+            </div>
+            <div class="compare-actions">
+              <button class="btn-ghost" type="button" id="share-btn" disabled>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Copy plan
+              </button>
+              <button class="btn-ghost" type="button" id="compare-toggle-btn" disabled>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Compare 2
+              </button>
+              <button class="btn-ghost" type="button" id="refresh-button" disabled>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+              </button>
+              <button class="btn-ghost" type="button" data-view="plan">← Edit goal</button>
+            </div>
+          </div>
+
+          <!-- Metric strip -->
+          <div class="metric-strip">
+            <div class="metric-item"><span>Budget cap</span><strong id="metric-budget">--</strong></div>
+            <div class="metric-item metric-green"><span>Best saving</span><strong id="metric-saving">--</strong></div>
+            <div class="metric-item"><span>Recommended</span><strong id="metric-decision">--</strong></div>
+            <div class="metric-item"><span>Engine</span><strong id="engine-mode">--</strong></div>
+          </div>
+
+          <!-- Budget warning banner (feature 6) -->
+          <div id="budget-warning" style="display:none"></div>
+
+          <!-- What-if budget slider -->
+          <div class="whatif-bar card" id="whatif-bar" style="display:none">
+            <div class="whatif-inner">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span class="whatif-label">What if my budget changes?</span>
+              <input id="whatif-slider" type="range" class="range-slider whatif-range" min="10000" max="500000" step="5000" value="25000">
+              <output class="whatif-output" id="whatif-output">₹25,000</output>
+              <button class="whatif-apply btn-primary" type="button" id="whatif-apply">Re-run</button>
+            </div>
+          </div>
+
+          <!-- Plan grid -->
+          <div class="plan-grid" id="plan-grid">
+            <div class="plan-skeleton"></div><div class="plan-skeleton"></div>
+            <div class="plan-skeleton"></div><div class="plan-skeleton"></div>
+          </div>
+
+          <!-- Savings discovery -->
+          <div class="savings-discovery card" id="savings-discovery" style="display:none">
+            <div class="sd-header">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              <strong>Savings discovery</strong>
+              <span>Quick wins to cut costs without degrading quality</span>
+            </div>
+            <div class="sd-hints" id="sd-hints"></div>
+          </div>
+
+          <!-- AI assumptions (shown when Claude is active) -->
+          <div class="ai-notes card" id="ai-notes" style="display:none">
+            <div class="ai-notes-header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <strong>Claude AI notes</strong>
+            </div>
+            <div class="ai-notes-body">
+              <div class="ai-section" id="ai-assumptions-wrap">
+                <span class="ai-section-label">Assumptions</span>
+                <ul id="ai-assumptions"></ul>
+              </div>
+              <div class="ai-section" id="ai-risks-wrap">
+                <span class="ai-section-label">Risks</span>
+                <ul id="ai-risks"></ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Side-by-side comparison panel -->
+          <div class="compare-side card" id="compare-side" style="display:none">
+            <div class="cs-header">
+              <strong>Side-by-side comparison</strong>
+              <button class="cs-close" type="button" id="cs-close">✕</button>
+            </div>
+            <div class="cs-body" id="cs-body"></div>
+          </div>
+
+          <!-- Detail panel -->
+          <div class="detail-panel card" id="detail-card">
+            <div class="detail-empty">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <p>Select a plan above to see the full cost breakdown, trade-offs, and savings.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── ACT ── -->
+      <div class="view" id="view-act" hidden>
+        <div class="view-inner view-narrow">
+          <div class="view-header">
+            <span class="step-badge">Step 4 · Act</span>
+            <h2>Execute your plan</h2>
+            <p>Price alerts, negotiation tools, and sharing — all in one place.</p>
+          </div>
+          <article class="act-card card" id="progress-tracker-card" style="display:none">
+            <div class="act-icon act-gold">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 8c.6.9 1 2 1 3a7 7 0 1 1-14 0c0-1 .4-2.1 1-3"/><path d="M12 2v2"/><path d="M9 10h6"/><path d="M12 12v4"/></svg>
+            </div>
+            <div class="act-body">
+              <strong>Track savings</strong>
+              <p id="progress-desc">How much have you saved toward your goal?</p>
+            </div>
+            <div class="progress-tracker">
+              <div class="progress-track-bar">
+                <div class="progress-track-fill" id="progress-track-fill" style="width:0%"></div>
+              </div>
+              <div class="progress-track-labels">
+                <span id="progress-saved-label">₹0 saved</span>
+                <span id="progress-goal-label">of ₹0</span>
+              </div>
+              <input type="range" id="progress-slider" class="range-slider" min="0" max="100000" step="1000" value="0" style="margin-top:8px">
+              <button class="btn-outline btn-sm" type="button" id="progress-save-btn" style="margin-top:8px">Update savings</button>
+            </div>
+          </article>
+          <div class="act-grid">
+            <article class="act-card card">
+              <div class="act-icon act-green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+              <div class="act-body"><strong>Watch prices</strong><p>Track expensive cost buckets. Get notified when your plan drops below the target price.</p></div>
+              <button class="btn-outline" type="button" id="create-alert-btn">Create price alert</button>
+            </article>
+            <article class="act-card card">
+              <div class="act-icon act-blue"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+              <div class="act-body"><strong>AI Negotiator</strong><p>Generate a vendor message backed by market alternatives and savings evidence.</p></div>
+              <button class="btn-outline" type="button" id="draft-msg-btn">Draft message</button>
+            </article>
+            <article class="act-card card">
+              <div class="act-icon act-gold"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></div>
+              <div class="act-body"><strong>Share & Export</strong><p>Copy a shareable link, export the plan as a file, or copy formatted text.</p></div>
+              <div class="act-btns">
+                <button class="btn-outline btn-sm" type="button" id="copy-link-btn">Copy link</button>
+                <button class="btn-outline btn-sm btn-whatsapp" type="button" id="whatsapp-share-btn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  WhatsApp
+                </button>
+                <button class="btn-outline btn-sm" type="button" id="export-pdf-btn">Export PDF</button>
+                <button class="btn-outline btn-sm" type="button" id="download-plan-btn">Download JSON</button>
+                <button class="btn-outline btn-sm" type="button" id="share-act-btn">Copy text</button>
+              </div>
+            </article>
+          </div>
+          <div class="chosen-plan card" id="chosen-plan">
+            <div class="chosen-empty"><p>No plan chosen yet. <button class="link-btn" data-view="compare" type="button">Go to Compare →</button></p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── LIFE EVENT PLANNER ── -->
+      <div class="view" id="view-life" hidden>
+        <div class="view-inner view-narrow">
+          <div class="view-header">
+            <span class="step-badge">Life planner</span>
+            <h2>Annual budget allocator</h2>
+            <p>Enter your yearly budget. CostPilot splits it across life events so you can plan confidently.</p>
+          </div>
+          <div class="life-form card">
+            <div class="field">
+              <label class="field-label" for="life-budget">
+                Annual budget
+                <output class="budget-out" id="life-budget-output">₹5,00,000</output>
+              </label>
+              <input id="life-budget" type="range" class="range-slider" min="100000" max="5000000" step="50000" value="500000">
+              <div class="range-ticks"><span>₹1L</span><span>₹10L</span><span>₹25L</span><span>₹50L</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="life-city">Home city</label>
+              <select id="life-city" class="field-input field-select">
+                <option>Delhi</option><option>Mumbai</option><option>Bengaluru</option>
+                <option>Chennai</option><option>Kolkata</option><option>Hyderabad</option>
+                <option>Pune</option><option>Ahmedabad</option>
+              </select>
+            </div>
+            <button class="btn-primary" type="button" id="life-plan-btn" style="margin-top:4px">
+              Allocate my budget
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
+          <div id="life-result" style="display:none">
+            <div class="life-summary card" id="life-summary"></div>
+            <div class="life-categories" id="life-categories"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── HISTORY ── -->
+      <div class="view" id="view-history" hidden>
+        <div class="view-inner view-narrow">
+          <div class="view-header">
+            <span class="step-badge">Saved runs</span>
+            <h2>Planning history</h2>
+            <p>Your last 12 plans, saved locally. Bookmark any plan to revisit it anytime.</p>
+          </div>
+          <div class="history-actions">
+            <div class="history-tabs">
+              <button class="htab active" id="htab-recent" type="button">Recent</button>
+              <button class="htab" id="htab-saved" type="button">
+                Bookmarked
+                <span class="saved-count" id="saved-count" style="display:none">0</span>
+              </button>
+            </div>
+            <button class="btn-ghost" type="button" id="clear-history-btn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              Clear history
+            </button>
+          </div>
+          <div class="portfolio-section card" id="portfolio-section" style="display:none">
+            <div class="portfolio-header">
+              <strong>Active goals portfolio</strong>
+              <span class="portfolio-total" id="portfolio-total"></span>
+            </div>
+            <div class="portfolio-bars" id="portfolio-bars"></div>
+          </div>
+          <div class="history-grid" id="history-list">
+            <div class="history-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <p>No saved runs yet. <button class="link-btn" data-view="plan" type="button">Generate your first plan →</button></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /views -->
+
+    <!-- ═══ MOBILE BOTTOM NAV ═══ -->
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
+      <button class="mob-tab" data-view="home" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Home</span>
+      </button>
+      <button class="mob-tab" data-view="plan" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <span>Plan</span>
+      </button>
+      <button class="mob-tab" data-view="compare" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Compare</span>
+      </button>
+      <button class="mob-tab" data-view="act" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Act</span>
+      </button>
+      <button class="mob-tab" data-view="life" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+        <span>Life</span>
+      </button>
+      <button class="mob-tab" data-view="history" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>History</span>
+      </button>
+    </nav>
+
+    <!-- ═══ JOURNEY BAR ═══ -->
+    <div class="journey-bar" id="journey-bar" aria-hidden="true">
+      <div class="journey-inner">
+        <div class="journey-step" data-step="0"><span class="j-num">1</span><span class="j-label">Goal</span></div>
+        <div class="j-line"></div>
+        <div class="journey-step" data-step="1"><span class="j-num">2</span><span class="j-label">Optimising</span></div>
+        <div class="j-line"></div>
+        <div class="journey-step" data-step="2"><span class="j-num">3</span><span class="j-label">Compare</span></div>
+        <div class="j-line"></div>
+        <div class="journey-step" data-step="3"><span class="j-num">4</span><span class="j-label">Act</span></div>
+        <span class="j-status" id="j-status">Goal</span>
+      </div>
+    </div>
+
+    <!-- ═══ ONBOARDING TOOLTIP ═══ -->
+    <div class="onboard-overlay" id="onboard-overlay" aria-hidden="true">
+      <div class="onboard-card" id="onboard-card">
+        <div class="onboard-steps">
+          <div class="onboard-step active" data-step="0">
+            <div class="onboard-icon"></div>
+            <h3>Describe your goal</h3>
+            <p>Tell CostPilot what you want to do — a trip, a gadget, a move, an event. Plain English, no forms to fill.</p>
+          </div>
+          <div class="onboard-step" data-step="1">
+            <div class="onboard-icon"></div>
+            <h3>Get 4 ranked plans</h3>
+            <p>The AI generates Cheapest, Fastest, Best Value, and Premium routes — each with full cost breakdown and trade-offs.</p>
+          </div>
+          <div class="onboard-step" data-step="2">
+            <div class="onboard-icon"></div>
+            <h3>Choose and act</h3>
+            <p>Compare side-by-side, tweak your budget with the what-if slider, then copy a link or set a price alert.</p>
+          </div>
+        </div>
+        <div class="onboard-dots" id="onboard-dots">
+          <span class="odot active" data-step="0"></span>
+          <span class="odot" data-step="1"></span>
+          <span class="odot" data-step="2"></span>
+        </div>
+        <div class="onboard-footer">
+          <button class="btn-ghost" type="button" id="onboard-skip">Skip</button>
+          <button class="btn-primary" type="button" id="onboard-next">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MODAL OVERLAY ═══ -->
+    <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
+
+      <!-- Price Alert Modal -->
+      <div class="modal" id="alert-modal" role="dialog" aria-labelledby="alert-modal-title" aria-modal="true">
+        <div class="modal-header">
+          <strong id="alert-modal-title">Set price alert</strong>
+          <button class="modal-close" type="button" data-close-modal aria-label="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">We'll save this alert locally. When you revisit, CostPilot will remind you to re-check prices.</p>
+          <div class="modal-field">
+            <label class="field-label" for="alert-plan-name">Plan</label>
+            <input id="alert-plan-name" class="field-input" type="text" readonly>
+          </div>
+          <div class="modal-field">
+            <label class="field-label" for="alert-threshold">
+              Alert if total drops below
+              <output id="alert-threshold-output" class="budget-out">₹0</output>
+            </label>
+            <input id="alert-threshold" type="range" class="range-slider" min="5000" max="500000" step="1000">
+          </div>
+          <div class="modal-field">
+            <label class="field-label" for="alert-note">Note (optional)</label>
+            <input id="alert-note" class="field-input" type="text" placeholder="e.g. Check Goa flight prices every week">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" type="button" data-close-modal>Cancel</button>
+          <button class="btn-primary" type="button" id="save-alert-btn">Save alert</button>
+        </div>
+      </div>
+
+      <!-- Draft Message Modal -->
+      <div class="modal" id="draft-modal" role="dialog" aria-labelledby="draft-modal-title" aria-modal="true">
+        <div class="modal-header">
+          <strong id="draft-modal-title">AI Negotiator</strong>
+          <button class="modal-close" type="button" data-close-modal aria-label="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">Paste this message to your vendor. Edit as needed before sending.</p>
+          <textarea id="draft-msg-text" class="draft-textarea" rows="10" spellcheck="true"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" type="button" data-close-modal>Close</button>
+          <button class="btn-primary" type="button" id="copy-draft-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy message
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /modal-overlay -->
+
+    <!-- PDF print frame (hidden, populated before window.print()) -->
+    <div id="pdf-frame" aria-hidden="true"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
