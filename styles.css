@@ -102,7 +102,7 @@ ol,ul{margin:0;padding:0;list-style:none}
 }
 .nav-tab:hover:not(.active){color:var(--ink);background:rgba(0,0,0,.04)}
 .nav-tab.active{background:var(--surface);color:var(--ink);box-shadow:var(--sh-sm);font-weight:700}
-.nav-right{margin-left:16px;flex-shrink:0}
+.nav-right{margin-left:16px;flex-shrink:0;display:flex;align-items:center;gap:8px;position:relative;}
 .status-pill{
   display:flex;align-items:center;gap:7px;height:32px;padding:0 14px;
   border-radius:999px;background:var(--paper);border:1px solid var(--border);
