@@ -52,6 +52,16 @@
         </nav>
 
         <div class="nav-right">
+          <!-- Auth button -->
+          <button class="auth-btn" id="auth-btn" type="button">Sign in</button>
+          <div class="user-avatar" id="user-avatar" style="display:none" title="Account">
+            <span id="user-initial">U</span>
+          </div>
+          <div class="user-menu" id="user-menu" style="display:none">
+            <div class="user-menu-email" id="user-menu-email"></div>
+            <button class="user-menu-item" id="sign-out-btn" type="button">Sign out</button>
+          </div>
+
           <button class="dark-toggle" id="dark-toggle" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
             <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -611,6 +621,222 @@
 
     <!-- PDF print frame (hidden, populated before window.print()) -->
     <div id="pdf-frame" aria-hidden="true"></div>
+
+    <!-- ═══ AUTH MODAL ═══ -->
+    <div class="auth-overlay" id="auth-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+      <div class="auth-modal">
+        <button class="auth-modal-close" id="auth-modal-close" type="button" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+
+        <div class="auth-brand">
+          <div class="auth-brand-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <span>CostPilot <em>AI</em></span>
+        </div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-tab="login" type="button">Sign in</button>
+          <button class="auth-tab" data-auth-tab="signup" type="button">Create account</button>
+        </div>
+
+        <!-- Login form -->
+        <form class="auth-form" id="auth-login-form" data-auth-panel="login">
+          <h2 class="auth-title" id="auth-modal-title">Welcome back</h2>
+          <p class="auth-sub">Sign in to sync your plans across devices</p>
+          <div class="auth-field">
+            <label class="auth-label" for="login-email">Email</label>
+            <input class="auth-input" id="login-email" type="email" placeholder="you@example.com" autocomplete="email" required>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="login-password">Password</label>
+            <input class="auth-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+          </div>
+          <div id="auth-error-login" class="auth-error" style="display:none"></div>
+          <button class="btn-primary auth-submit" type="submit" id="login-submit-btn">Sign in</button>
+          <div class="auth-divider"><span>or</span></div>
+          <button class="btn-google" type="button" id="google-login-btn">
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+            Continue with Google
+          </button>
+        </form>
+
+        <!-- Signup form -->
+        <form class="auth-form" id="auth-signup-form" data-auth-panel="signup" style="display:none">
+          <h2 class="auth-title">Create account</h2>
+          <p class="auth-sub">Save and sync your plans across all devices</p>
+          <div class="auth-field">
+            <label class="auth-label" for="signup-name">Full name</label>
+            <input class="auth-input" id="signup-name" type="text" placeholder="Parth Dixit" autocomplete="name" required>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="signup-email">Email</label>
+            <input class="auth-input" id="signup-email" type="email" placeholder="you@example.com" autocomplete="email" required>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="signup-password">Password</label>
+            <input class="auth-input" id="signup-password" type="password" placeholder="Min. 6 characters" autocomplete="new-password" required minlength="6">
+          </div>
+          <div id="auth-error-signup" class="auth-error" style="display:none"></div>
+          <button class="btn-primary auth-submit" type="submit" id="signup-submit-btn">Create account</button>
+          <div class="auth-divider"><span>or</span></div>
+          <button class="btn-google" type="button" id="google-signup-btn">
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+            Continue with Google
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+      import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+      // ── FIREBASE CONFIG ── Replace with your project's config from console.firebase.google.com
+      const firebaseConfig = {
+        apiKey:            "AIzaSyAwsHfHZmzMnXm_zwj0ySPfVlUx2BbZ_lI",
+        authDomain:        "cost-84115.firebaseapp.com",
+        projectId:         "cost-84115",
+        storageBucket:     "cost-84115.firebasestorage.app",
+        messagingSenderId: "45805578172",
+        appId:             "1:45805578172:web:bd2d6aec73e212adb3adb9",
+        measurementId:     "G-77ZQCM4HBB",
+      };
+
+      const app      = initializeApp(firebaseConfig);
+      const auth     = getAuth(app);
+      const provider = new GoogleAuthProvider();
+
+      // ── DOM ──
+      const authBtn       = document.getElementById("auth-btn");
+      const authOverlay   = document.getElementById("auth-overlay");
+      const authModalClose= document.getElementById("auth-modal-close");
+      const userAvatar    = document.getElementById("user-avatar");
+      const userInitial   = document.getElementById("user-initial");
+      const userMenu      = document.getElementById("user-menu");
+      const userMenuEmail = document.getElementById("user-menu-email");
+      const signOutBtn    = document.getElementById("sign-out-btn");
+      const authTabs      = document.querySelectorAll("[data-auth-tab]");
+      const loginForm     = document.getElementById("auth-login-form");
+      const signupForm    = document.getElementById("auth-signup-form");
+      const loginError    = document.getElementById("auth-error-login");
+      const signupError   = document.getElementById("auth-error-signup");
+
+      function openAuth() { authOverlay.style.display = "flex"; document.body.style.overflow = "hidden"; }
+      function closeAuth() { authOverlay.style.display = "none"; document.body.style.overflow = ""; }
+
+      authBtn.addEventListener("click", openAuth);
+      authModalClose.addEventListener("click", closeAuth);
+      authOverlay.addEventListener("click", (e) => { if (e.target === authOverlay) closeAuth(); });
+
+      // Tab switching
+      authTabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+          authTabs.forEach(t => t.classList.remove("active"));
+          tab.classList.add("active");
+          const panel = tab.dataset.authTab;
+          loginForm.style.display  = panel === "login"  ? "flex" : "none";
+          signupForm.style.display = panel === "signup" ? "flex" : "none";
+          loginError.style.display = signupError.style.display = "none";
+        });
+      });
+
+      // ── AUTH STATE ──
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          authBtn.style.display    = "none";
+          userAvatar.style.display = "flex";
+          userInitial.textContent  = (user.displayName || user.email || "U")[0].toUpperCase();
+          userMenuEmail.textContent = user.displayName ? `${user.displayName} · ${user.email}` : user.email;
+          closeAuth();
+          if (typeof toast === "function") toast(`Signed in as ${user.displayName || user.email}`, "success");
+        } else {
+          authBtn.style.display    = "block";
+          userAvatar.style.display = "none";
+          userMenu.style.display   = "none";
+        }
+      });
+
+      // ── AVATAR MENU TOGGLE ──
+      userAvatar.addEventListener("click", () => {
+        userMenu.style.display = userMenu.style.display === "none" ? "block" : "none";
+      });
+      document.addEventListener("click", (e) => {
+        if (!userAvatar.contains(e.target) && !userMenu.contains(e.target)) userMenu.style.display = "none";
+      });
+
+      // ── SIGN OUT ──
+      signOutBtn.addEventListener("click", async () => {
+        await signOut(auth);
+        userMenu.style.display = "none";
+        if (typeof toast === "function") toast("Signed out", "default");
+      });
+
+      function showError(el, msg) { el.textContent = msg; el.style.display = "block"; }
+
+      // ── EMAIL LOGIN ──
+      loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        loginError.style.display = "none";
+        const btn = document.getElementById("login-submit-btn");
+        btn.textContent = "Signing in…"; btn.disabled = true;
+        try {
+          await signInWithEmailAndPassword(auth,
+            document.getElementById("login-email").value.trim(),
+            document.getElementById("login-password").value
+          );
+        } catch (err) {
+          showError(loginError, friendlyError(err.code));
+        } finally {
+          btn.textContent = "Sign in"; btn.disabled = false;
+        }
+      });
+
+      // ── EMAIL SIGNUP ──
+      signupForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        signupError.style.display = "none";
+        const btn = document.getElementById("signup-submit-btn");
+        btn.textContent = "Creating account…"; btn.disabled = true;
+        try {
+          const cred = await createUserWithEmailAndPassword(auth,
+            document.getElementById("signup-email").value.trim(),
+            document.getElementById("signup-password").value
+          );
+          const name = document.getElementById("signup-name").value.trim();
+          if (name) await updateProfile(cred.user, { displayName: name });
+        } catch (err) {
+          showError(signupError, friendlyError(err.code));
+        } finally {
+          btn.textContent = "Create account"; btn.disabled = false;
+        }
+      });
+
+      // ── GOOGLE SIGN IN ──
+      async function googleSignIn() {
+        try { await signInWithPopup(auth, provider); }
+        catch (err) { if (err.code !== "auth/popup-closed-by-user") if (typeof toast === "function") toast(friendlyError(err.code), "error"); }
+      }
+      document.getElementById("google-login-btn").addEventListener("click", googleSignIn);
+      document.getElementById("google-signup-btn").addEventListener("click", googleSignIn);
+
+      // ── FRIENDLY ERROR MESSAGES ──
+      function friendlyError(code) {
+        const map = {
+          "auth/user-not-found":       "No account found with this email.",
+          "auth/wrong-password":       "Incorrect password. Try again.",
+          "auth/email-already-in-use": "An account with this email already exists.",
+          "auth/weak-password":        "Password must be at least 6 characters.",
+          "auth/invalid-email":        "Please enter a valid email address.",
+          "auth/too-many-requests":    "Too many attempts. Try again later.",
+          "auth/network-request-failed": "Network error. Check your connection.",
+          "auth/invalid-credential":   "Incorrect email or password.",
+        };
+        return map[code] || "Something went wrong. Please try again.";
+      }
+    </script>
 
     <script src="app.js"></script>
   </body>
