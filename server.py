@@ -506,7 +506,7 @@ def main():
     port = int(os.getenv("PORT", "4173"))
     os.chdir(ROOT)
     init_db()
-    server = ThreadingHTTPServer(("localhost", port), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
     has_gemini = bool(os.getenv("GEMINI_API_KEY"))
     db_size    = DB_PATH.stat().st_size if DB_PATH.exists() else 0
