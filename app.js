@@ -770,22 +770,35 @@ function localPlan(p) {
 ═══════════════════════════════════════ */
 function renderPlanCards(plans) {
   const budget = state.lastResult?.constraints?.budget || 0;
+  const recommendedId = state.lastResult?.summary?.decision
+    ? (plans.find((p) => p.name === state.lastResult.summary.decision)?.id || plans.find((p)=>p.id==="value")?.id)
+    : plans.find((p)=>p.id==="value")?.id;
+
   el.planGrid.innerHTML = plans.map((plan, idx) => {
-    const over     = plan.total_cost > budget;
-    const isActive = plan.id === state.selectedPlanId;
-    const isCmp    = state.comparePlanIds.includes(plan.id);
+    const over        = plan.total_cost > budget;
+    const isActive    = plan.id === state.selectedPlanId;
+    const isCmp       = state.comparePlanIds.includes(plan.id);
+    const isRecommended = plan.id === recommendedId;
     const cmpBtnLabel = isCmp ? "✓ Selected" : "+ Compare";
+    const deltaAmt    = Math.abs(plan.budget_delta ?? (budget - plan.total_cost));
+    const deltaLabel  = over
+      ? `<span class="plan-delta over">₹${(deltaAmt/1000).toFixed(1)}K over budget</span>`
+      : `<span class="plan-delta under">₹${(deltaAmt/1000).toFixed(1)}K under budget</span>`;
     return `
-      <button class="plan-card ${isActive?"active":""} ${isCmp?"compare-selected":""}"
+      <button class="plan-card ${isActive?"active":""} ${isCmp?"compare-selected":""} ${isRecommended?"recommended":""}"
         type="button" data-plan-id="${plan.id}"
         style="animation-delay:${idx*55}ms" aria-pressed="${isActive}">
+        ${isRecommended ? `<div class="recommended-banner">★ Recommended for you</div>` : ""}
         <span class="plan-badge">${plan.badge}</span>
         <span class="plan-name">${plan.name}</span>
-        <span class="plan-price">${money(plan.total_cost)}</span>
-        <span class="plan-delta ${over?"over":""}">${plan.budget_delta_label}</span>
+        <span class="plan-price-big">${money(plan.total_cost)}</span>
+        ${deltaLabel}
         <span class="plan-bar"><span class="plan-bar-fill" style="width:${plan.fit_score}%"></span></span>
         <span class="plan-foot">${plan.time_label} · ${plan.fit_score}% fit</span>
-        ${state.compareMode?`<div class="compare-btn-row"><button class="compare-add-btn ${isCmp?"selected":""}" type="button" data-cmp-id="${plan.id}">${cmpBtnLabel}</button></div>`:""}
+        ${state.compareMode
+          ? `<div class="compare-btn-row"><button class="compare-add-btn ${isCmp?"selected":""}" type="button" data-cmp-id="${plan.id}">${cmpBtnLabel}</button></div>`
+          : `<button class="choose-plan-btn" type="button" data-plan-id="${plan.id}">Choose this plan →</button>`
+        }
       </button>`;
   }).join("");
 
@@ -793,8 +806,18 @@ function renderPlanCards(plans) {
   el.planGrid.querySelectorAll(".plan-card").forEach((card) => {
     card.addEventListener("click", (e) => {
       if (e.target.closest(".compare-add-btn")) return;
+      if (e.target.closest(".choose-plan-btn")) return;
       if (state.compareMode) return;
       selectPlan(card.dataset.planId);
+    });
+  });
+  // Choose plan button
+  el.planGrid.querySelectorAll(".choose-plan-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectPlan(btn.dataset.planId);
+      btn.textContent = "✓ Chosen";
+      btn.classList.add("chosen");
     });
   });
   // Compare add button
@@ -1945,6 +1968,152 @@ document.addEventListener("click", (e) => {
 });
 
 /* ═══════════════════════════════════════
+   EXAMPLE CHIPS
+═══════════════════════════════════════ */
+(function wireExampleChips() {
+  document.querySelectorAll(".example-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      el.goal.value = chip.dataset.goal;
+      el.goal.dispatchEvent(new Event("input"));
+      // Show a subtle hint
+      const hint = document.getElementById("chip-hint");
+      if (hint) hint.remove();
+      const h = document.createElement("p");
+      h.id = "chip-hint";
+      h.className = "chip-hint";
+      h.textContent = "Tap Generate to continue →";
+      el.goal.parentNode.appendChild(h);
+      setTimeout(() => h?.remove(), 3500);
+      // Highlight submit button
+      const sb = document.getElementById("submit-button");
+      sb?.classList.add("ready-pulse");
+    });
+  });
+})();
+
+/* ═══════════════════════════════════════
+   GOAL VALIDATION / CLARIFICATION
+═══════════════════════════════════════ */
+function validateGoal(payload) {
+  const g = (payload.goal || "").toLowerCase();
+  const type = payload.type || state.type;
+  const missing = [];
+
+  if (type === "travel") {
+    // Need a destination — look for city/place name or directional preposition
+    const hasDestination = /\b(to|in|at|visit|trip|tour)\s+[a-z]/i.test(g) ||
+      /\b(goa|delhi|mumbai|bangalore|bengaluru|jaipur|manali|kashmir|kerala|ooty|shimla|agra|varanasi|coorg|pondicherry|andaman|leh|ladakh|udaipur|mysore|mysuru|kolkata|hyderabad|chennai|pune|amritsar|rishikesh)\b/i.test(payload.goal);
+    const hasDuration = /\b\d+\s*(day|night|week|hr|hour)/i.test(g) || payload.duration > 0;
+    if (!hasDestination) missing.push({ key: "destination", question: "Where are you going?", chips: ["Goa","Manali","Jaipur","Kerala","Ladakh","Ooty"] });
+    if (!hasDuration)    missing.push({ key: "duration",    question: "How many days?",    chips: ["2 days","4 days","7 days","10 days","14 days"] });
+  }
+
+  if (type === "gadget") {
+    const hasProduct = /\b(laptop|phone|tablet|camera|smartwatch|headphone|speaker|tv|monitor|keyboard|macbook|iphone|samsung|oneplus|pixel|ipad|dell|hp|sony|asus|lenovo|realme|poco|motorola|redmi)\b/i.test(payload.goal);
+    if (!hasProduct) missing.push({ key: "product", question: "What do you want to buy?", chips: ["Laptop","Smartphone","Tablet","Camera","Headphones","Smartwatch"] });
+  }
+
+  if (type === "relocation") {
+    const hasDest = /\bto\s+[a-z]/i.test(g) ||
+      /\b(delhi|mumbai|bangalore|bengaluru|hyderabad|chennai|kolkata|pune|ahmedabad|jaipur|lucknow|surat|nagpur)\b/i.test(payload.goal);
+    if (!hasDest) missing.push({ key: "destination", question: "Which city are you relocating to?", chips: ["Bengaluru","Mumbai","Hyderabad","Pune","Chennai","Delhi"] });
+  }
+
+  if (type === "event") {
+    const hasType  = /\b(wedding|birthday|party|anniversary|conference|farewell|reunion|festival|reception)\b/i.test(payload.goal);
+    const hasScale = /\b\d+\s*(people|person|guests?|pax|head)\b/i.test(g) || /budget|₹/i.test(g);
+    if (!hasType)  missing.push({ key: "event_type",  question: "What kind of event?",     chips: ["Birthday party","Wedding","Anniversary","Farewell","Conference"] });
+    if (!hasScale) missing.push({ key: "guest_count", question: "How many guests approx?", chips: ["10 people","25 people","50 people","100 people","200 people"] });
+  }
+
+  return missing;
+}
+
+function showClarificationPanel(missing, payload) {
+  const panel = document.getElementById("clarification-panel");
+  if (!panel) return;
+
+  panel.innerHTML = `
+    <div class="clarif-inner">
+      <p class="clarif-title">A couple of quick details will help:</p>
+      ${missing.map((m) => `
+        <div class="clarif-question" data-key="${m.key}">
+          <span class="clarif-q">${m.question}</span>
+          <div class="clarif-chips">
+            ${m.chips.map((c) => `<button class="clarif-chip" type="button" data-key="${m.key}" data-val="${c}">${c}</button>`).join("")}
+          </div>
+        </div>
+      `).join("")}
+      <button class="clarif-go btn-primary" id="clarif-go-btn" type="button" style="display:none">
+        Looks good — Generate plans →
+      </button>
+    </div>`;
+
+  panel.classList.add("visible");
+
+  // Track resolved keys
+  const resolved = {};
+  panel.querySelectorAll(".clarif-chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      const val = btn.dataset.val;
+      resolved[key] = val;
+
+      // Append value to goal textarea
+      const cur = el.goal.value.trim();
+      el.goal.value = cur ? `${cur}, ${val}` : val;
+      el.goal.dispatchEvent(new Event("input"));
+
+      // Mark question as resolved
+      btn.closest(".clarif-question").classList.add("resolved");
+      btn.closest(".clarif-chips").querySelectorAll(".clarif-chip").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      // Check if all resolved
+      if (Object.keys(resolved).length >= missing.length) {
+        document.getElementById("clarif-go-btn").style.display = "flex";
+      }
+    });
+  });
+
+  document.getElementById("clarif-go-btn")?.addEventListener("click", () => {
+    hideClarificationPanel();
+    generatePlan(getPayload());
+  });
+}
+
+function hideClarificationPanel() {
+  const panel = document.getElementById("clarification-panel");
+  if (panel) { panel.innerHTML = ""; panel.classList.remove("visible"); }
+}
+
+function validateAndGenerate() {
+  hideClarificationPanel();
+  const payload = getPayload();
+  const missing = validateGoal(payload);
+  if (missing.length === 0) {
+    generatePlan(payload);
+  } else {
+    showClarificationPanel(missing, payload);
+    // Scroll panel into view
+    document.getElementById("clarification-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+// Wire submit button pulse when form has content
+(function wireSubmitPulse() {
+  function checkReady() {
+    const sb = document.getElementById("submit-button");
+    if (!sb) return;
+    const hasGoal = el.goal?.value?.trim().length > 5;
+    sb.classList.toggle("ready-pulse", hasGoal);
+  }
+  el.goal?.addEventListener("input", checkReady);
+  el.budget?.addEventListener("input", checkReady);
+  setTimeout(checkReady, 300);
+})();
+
+/* ═══════════════════════════════════════
    WIRING
 ═══════════════════════════════════════ */
 document.querySelectorAll(".persona-btn").forEach((b) => b.addEventListener("click", () => setType(b.dataset.type)));
@@ -1952,7 +2121,7 @@ el.budget.addEventListener("input", () => { updateBudget(); saveForm(); });
 el.goal.addEventListener("input", saveForm);
 el.duration.addEventListener("input", saveForm);
 el.origin.addEventListener("change", saveForm);
-el.form.addEventListener("submit", (e) => { e.preventDefault(); generatePlan(getPayload()); });
+el.form.addEventListener("submit", (e) => { e.preventDefault(); validateAndGenerate(); });
 el.refreshBtn.addEventListener("click", () => { if (state.lastPayload) generatePlan(state.lastPayload); });
 el.shareBtn.addEventListener("click", copyPlan);
 el.compareToggleBtn.addEventListener("click", toggleCompareMode);
