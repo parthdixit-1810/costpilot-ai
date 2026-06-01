@@ -2000,12 +2000,15 @@ function validateGoal(payload) {
   const missing = [];
 
   if (type === "travel") {
-    // Need a destination — look for city/place name or directional preposition
-    const hasDestination = /\b(to|in|at|visit|trip|tour)\s+[a-z]/i.test(g) ||
-      /\b(goa|delhi|mumbai|bangalore|bengaluru|jaipur|manali|kashmir|kerala|ooty|shimla|agra|varanasi|coorg|pondicherry|andaman|leh|ladakh|udaipur|mysore|mysuru|kolkata|hyderabad|chennai|pune|amritsar|rishikesh)\b/i.test(payload.goal);
-    const hasDuration = /\b\d+\s*(day|night|week|hr|hour)/i.test(g) || payload.duration > 0;
-    if (!hasDestination) missing.push({ key: "destination", question: "Where are you going?", chips: ["Goa","Manali","Jaipur","Kerala","Ladakh","Ooty"] });
-    if (!hasDuration)    missing.push({ key: "duration",    question: "How many days?",    chips: ["2 days","4 days","7 days","10 days","14 days"] });
+    // Need a specific destination — a known place name OR preposition followed by a proper noun (not a generic verb)
+    const GENERIC_VERBS = /^(travel|go|visit|explore|see|find|plan|get|do|make|have|take|want|need|book|check|look|somewhere|anywhere|a\s)/i;
+    const prepositionDest = g.match(/\b(?:to|in|at|for)\s+([a-z][a-z]+)/gi) || [];
+    const hasPrepositionDest = prepositionDest.some(m => !GENERIC_VERBS.test(m.replace(/^(to|in|at|for)\s+/i, "")));
+    const hasKnownPlace = /\b(goa|delhi|mumbai|bangalore|bengaluru|jaipur|manali|kashmir|kerala|ooty|shimla|agra|varanasi|coorg|pondicherry|andaman|leh|ladakh|udaipur|mysore|mysuru|kolkata|hyderabad|chennai|pune|amritsar|rishikesh|himachal|rajasthan|uttarakhand|darjeeling|sikkim|spiti|thailand|bali|singapore|dubai|europe|london|paris|vietnam|nepal|sri lanka|maldives)\b/i.test(payload.goal);
+    const hasDestination = hasPrepositionDest || hasKnownPlace;
+    const hasDuration = /\b\d+\s*(day|night|week|hr|hour)/i.test(g);
+    if (!hasDestination) missing.push({ key: "destination", question: "Where are you going?", chips: ["Goa","Manali","Jaipur","Kerala","Ladakh","Thailand"] });
+    if (!hasDuration)    missing.push({ key: "duration",    question: "How many days?",       chips: ["2 days","4 days","7 days","10 days","14 days"] });
   }
 
   if (type === "gadget") {
@@ -2014,8 +2017,7 @@ function validateGoal(payload) {
   }
 
   if (type === "relocation") {
-    const hasDest = /\bto\s+[a-z]/i.test(g) ||
-      /\b(delhi|mumbai|bangalore|bengaluru|hyderabad|chennai|kolkata|pune|ahmedabad|jaipur|lucknow|surat|nagpur)\b/i.test(payload.goal);
+    const hasDest = /\b(delhi|mumbai|bangalore|bengaluru|hyderabad|chennai|kolkata|pune|ahmedabad|jaipur|lucknow|surat|nagpur|noida|gurugram|gurgaon)\b/i.test(payload.goal);
     if (!hasDest) missing.push({ key: "destination", question: "Which city are you relocating to?", chips: ["Bengaluru","Mumbai","Hyderabad","Pune","Chennai","Delhi"] });
   }
 
@@ -2095,8 +2097,9 @@ function validateAndGenerate() {
     generatePlan(payload);
   } else {
     showClarificationPanel(missing, payload);
-    // Scroll panel into view
-    document.getElementById("clarification-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setTimeout(() => {
+      document.getElementById("clarification-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
   }
 }
 
