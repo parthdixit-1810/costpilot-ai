@@ -437,22 +437,105 @@
             <p>Enter your yearly budget. CostPilot splits it across life events so you can plan confidently.</p>
           </div>
           <div class="life-form card">
+
+            <!-- Budget -->
             <div class="field">
               <label class="field-label" for="life-budget">
-                Annual budget
+                Annual income / budget
                 <output class="budget-out" id="life-budget-output">₹5,00,000</output>
               </label>
               <input id="life-budget" type="range" class="range-slider" min="100000" max="5000000" step="50000" value="500000">
               <div class="range-ticks"><span>₹1L</span><span>₹10L</span><span>₹25L</span><span>₹50L</span></div>
             </div>
-            <div class="field">
-              <label class="field-label" for="life-city">Home city</label>
-              <select id="life-city" class="field-input field-select">
-                <option>Delhi</option><option>Mumbai</option><option>Bengaluru</option>
-                <option>Chennai</option><option>Kolkata</option><option>Hyderabad</option>
-                <option>Pune</option><option>Ahmedabad</option>
-              </select>
+
+            <!-- City + Family situation row -->
+            <div class="life-row">
+              <div class="field">
+                <label class="field-label" for="life-city">Home city</label>
+                <select id="life-city" class="field-input field-select">
+                  <option>Delhi</option><option>Mumbai</option><option>Bengaluru</option>
+                  <option>Chennai</option><option>Kolkata</option><option>Hyderabad</option>
+                  <option>Pune</option><option>Ahmedabad</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="life-family">Family situation</label>
+                <select id="life-family" class="field-input field-select">
+                  <option value="single">Single</option>
+                  <option value="couple">Couple (no kids)</option>
+                  <option value="family">Family with kids</option>
+                  <option value="joint">Joint family</option>
+                </select>
+              </div>
             </div>
+
+            <!-- Members + Kids row -->
+            <div class="life-row" id="life-family-extra">
+              <div class="field">
+                <label class="field-label" for="life-members">Total members</label>
+                <select id="life-members" class="field-input field-select">
+                  <option value="1">1</option><option value="2">2</option>
+                  <option value="3">3</option><option value="4" selected>4</option>
+                  <option value="5">5</option><option value="6+">6+</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="life-kids">Children</label>
+                <select id="life-kids" class="field-input field-select">
+                  <option value="0">None</option>
+                  <option value="1-school">1 (school-going)</option>
+                  <option value="2-school">2 (school-going)</option>
+                  <option value="1-college">1 (college-going)</option>
+                  <option value="2-college">2 (college-going)</option>
+                  <option value="1-young">1 (toddler/pre-school)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Health conditions -->
+            <div class="field">
+              <label class="field-label">Health &amp; medical needs</label>
+              <div class="life-checks">
+                <label class="life-check"><input type="checkbox" id="life-health-chronic"> Chronic illness / regular medication</label>
+                <label class="life-check"><input type="checkbox" id="life-health-senior"> Senior parent in household</label>
+                <label class="life-check"><input type="checkbox" id="life-health-insurance"> Health insurance (self-paid)</label>
+                <label class="life-check"><input type="checkbox" id="life-health-gym"> Fitness / gym memberships</label>
+              </div>
+            </div>
+
+            <!-- Loans & obligations -->
+            <div class="field">
+              <label class="field-label">Existing EMIs / obligations</label>
+              <div class="life-checks">
+                <label class="life-check"><input type="checkbox" id="life-emi-home"> Home loan EMI</label>
+                <label class="life-check"><input type="checkbox" id="life-emi-car"> Car / vehicle loan</label>
+                <label class="life-check"><input type="checkbox" id="life-emi-personal"> Personal loan</label>
+                <label class="life-check"><input type="checkbox" id="life-emi-invest"> SIP / investments (≥₹5k/mo)</label>
+              </div>
+            </div>
+
+            <!-- Lifestyle -->
+            <div class="life-row">
+              <div class="field">
+                <label class="field-label" for="life-lifestyle">Lifestyle</label>
+                <select id="life-lifestyle" class="field-input field-select">
+                  <option value="frugal">Frugal / budget-conscious</option>
+                  <option value="moderate" selected>Moderate</option>
+                  <option value="comfortable">Comfortable</option>
+                  <option value="premium">Premium / luxury</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label" for="life-income-type">Income type</label>
+                <select id="life-income-type" class="field-input field-select">
+                  <option value="salaried">Salaried</option>
+                  <option value="freelance">Freelance / variable</option>
+                  <option value="business">Business owner</option>
+                  <option value="retired">Retired / fixed income</option>
+                </select>
+              </div>
+            </div>
+
             <button class="btn-primary" type="button" id="life-plan-btn" style="margin-top:4px">
               Allocate my budget
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -755,6 +838,10 @@
           userMenu.style.display   = "none";
         }
         window.__fbUser = user;
+        // Restore life profile for this user if on Life view
+        if (user && typeof restoreLifeProfile === "function" && state?.view === "life") {
+          restoreLifeProfile();
+        }
       });
 
       // ── AUTH GATE: intercept nav for unauthenticated users ──
@@ -765,7 +852,7 @@
         if (view === "plan") return; // plan view is the landing, allow
         if (!window.__fbUser) {
           e.stopImmediatePropagation();
-          authOverlay.classList.add("open");
+          openAuth();
           if (typeof toast === "function") toast("Sign in to access this feature", "default");
         }
       }, true /* capture so we run before app.js listeners */);

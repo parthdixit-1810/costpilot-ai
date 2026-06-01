@@ -308,6 +308,7 @@ function showView(viewId, { pushHistory = true } = {}) {
     url.searchParams.set("view", viewId);
     history.pushState({ view: viewId }, "", url);
   }
+  document.dispatchEvent(new CustomEvent(`viewchange:${viewId}`));
 }
 
 // Handle browser back/forward
@@ -345,6 +346,20 @@ function setJourneyStage(idx) {
    LOCAL STORAGE HISTORY
 ═══════════════════════════════════════ */
 const STORAGE_KEY = "costpilot_history_v2";
+
+// Migrate v1 history → v2 (runs once, then removes old key)
+(function migrateStorage() {
+  try {
+    const old = localStorage.getItem("costpilot_history_v1");
+    if (!old) return;
+    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    if (existing.length === 0) {
+      localStorage.setItem(STORAGE_KEY, old); // copy v1 data as-is
+    }
+    localStorage.removeItem("costpilot_history_v1");
+  } catch {}
+})();
+
 function loadStoredHistory() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
   catch { return []; }
@@ -354,9 +369,11 @@ function saveHistory(entries) {
   catch {}
 }
 function pushHistory(entry) {
-  const h = loadStoredHistory();
-  h.unshift(entry);
-  saveHistory(h);
+  try {
+    const h = loadStoredHistory();
+    h.unshift(entry);
+    saveHistory(h);
+  } catch {}
 }
 function clearHistory() {
   localStorage.removeItem(STORAGE_KEY);
@@ -454,13 +471,71 @@ function renderSavingsDiscovery(plans, budget, type) {
 /* ═══════════════════════════════════════
    CLAUDE AI NOTES
 ═══════════════════════════════════════ */
+const MOCK_NOTES = {
+  travel: {
+    assumptions: [
+      "Prices based on economy class travel and 3-star hotels unless stated",
+      "Travel dates assumed as upcoming weekend or nearest long weekend",
+      "Per-person cost unless goal specifies group size",
+    ],
+    risks: [
+      "Flight and hotel prices fluctuate — lock in early to avoid surges",
+      "Festival seasons (Diwali, Christmas) can push costs 30–50% higher",
+      "Visa fees and travel insurance not included in estimates",
+    ],
+  },
+  gadget: {
+    assumptions: [
+      "Prices based on current Indian e-commerce listings (Amazon/Flipkart)",
+      "Includes GST; import duty excluded for grey-market/international buys",
+      "Warranty assumed as Indian seller warranty (1 year unless noted)",
+    ],
+    risks: [
+      "Launch pricing often drops 10–15% after 4–6 weeks — wait if not urgent",
+      "Grey-market units may lack official warranty and service support",
+      "Stock availability varies; prices may differ at time of purchase",
+    ],
+  },
+  relocation: {
+    assumptions: [
+      "Rental estimates based on 1BHK/2BHK in mid-range locality",
+      "One-time setup cost (deposit, movers, furnishing) included in plans",
+      "Monthly recurring cost excludes EMIs on existing loans",
+    ],
+    risks: [
+      "Security deposit (2–3 months rent) is a large upfront outflow",
+      "Brokerage (0.5–1 month rent) adds to first-month cost in most cities",
+      "Utility setup and internet activation can take 1–2 weeks",
+    ],
+  },
+  event: {
+    assumptions: [
+      "Guest count assumed from goal; catering cost at ₹700–₹1,200 per plate",
+      "Venue assumed as banquet hall or open space (not 5-star hotel)",
+      "Photography, decor, and catering bundled in mid-range plan",
+    ],
+    risks: [
+      "Vendor availability drops sharply in peak season (Nov–Feb)",
+      "Last-minute bookings carry 15–25% premium on most services",
+      "Hidden costs: valet parking, power backup, overtime charges",
+    ],
+  },
+};
+
 function renderAiNotes(llmNotes) {
-  if (!llmNotes || !["claude","gemini"].includes(llmNotes.mode)) { el.aiNotes.style.display = "none"; return; }
-  const assumptions = llmNotes.assumptions || [];
-  const risks       = llmNotes.risks || [];
-  if (!assumptions.length && !risks.length) { el.aiNotes.style.display = "none"; return; }
+  const isAI   = llmNotes && ["claude","gemini"].includes(llmNotes.mode);
+  const type   = state.lastResult?.constraints?.type || state.type || "travel";
+  const mock   = MOCK_NOTES[type] || MOCK_NOTES.travel;
+
+  const assumptions = (isAI ? llmNotes.assumptions : null) || mock.assumptions;
+  const risks       = (isAI ? llmNotes.risks       : null) || mock.risks;
+
+  // Update header label based on source
+  const header = el.aiNotes.querySelector(".ai-notes-header strong");
+  if (header) header.textContent = isAI ? `${llmNotes.mode === "gemini" ? "Gemini" : "Claude"} AI notes` : "Planner assumptions & risks";
 
   el.aiNotes.style.display = "block";
+
   if (assumptions.length) {
     el.aiAssumptionsWrap.style.display = "block";
     el.aiAssumptions.innerHTML = assumptions.map((a) => `<li>${a}</li>`).join("");
@@ -826,32 +901,26 @@ function renderPlanCards(plans) {
       </button>`;
   }).join("");
 
-  // Card click → select plan
-  el.planGrid.querySelectorAll(".plan-card").forEach((card) => {
-    card.addEventListener("click", (e) => {
-      if (e.target.closest(".compare-add-btn")) return;
-      if (e.target.closest(".choose-plan-btn")) return;
-      if (state.compareMode) return;
-      selectPlan(card.dataset.planId);
-    });
-  });
-  // Choose plan button
-  el.planGrid.querySelectorAll(".choose-plan-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      selectPlan(btn.dataset.planId);
-      btn.textContent = "✓ Chosen";
-      btn.classList.add("chosen");
-    });
-  });
-  // Compare add button
-  el.planGrid.querySelectorAll(".compare-add-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      selectForCompare(btn.dataset.cmpId);
-    });
-  });
 }
+
+// Single delegated handler on planGrid — wired once, survives re-renders
+el.planGrid.addEventListener("click", (e) => {
+  const compareBtn = e.target.closest(".compare-add-btn");
+  if (compareBtn) { e.stopPropagation(); selectForCompare(compareBtn.dataset.cmpId); return; }
+
+  const chooseBtn = e.target.closest(".choose-plan-btn");
+  if (chooseBtn) {
+    e.stopPropagation();
+    selectPlan(chooseBtn.dataset.planId);
+    chooseBtn.textContent = "✓ Chosen";
+    chooseBtn.classList.add("chosen");
+    return;
+  }
+
+  if (state.compareMode) return;
+  const card = e.target.closest(".plan-card");
+  if (card) selectPlan(card.dataset.planId);
+});
 
 /* ═══════════════════════════════════════
    RENDER PLANS
@@ -1760,46 +1829,157 @@ setTimeout(startOnboarding, 1200);
 /* ═══════════════════════════════════════
    LIFE EVENT PLANNER
 ═══════════════════════════════════════ */
-const LIFE_ALLOCS = [
-  { type:"travel",    label:"Travel",     pct:.20, icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 21 4s-2 0-3.5 1.5L14 9 5.8 7.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 3.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>`, desc:"2–3 trips per year including one long-haul or international trip" },
-  { type:"gadget",    label:"Gadgets",    pct:.12, icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`, desc:"Laptop refresh, phone upgrade, peripherals, and warranty" },
-  { type:"event",     label:"Events",     pct:.15, icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`, desc:"Celebrations, weddings attended, gifts, and dining out" },
-  { type:"relocation",label:"Housing",    pct:.53, icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`, desc:"Rent, deposit, utilities, internet, and setup costs" },
+const LIFE_BASE_CATS = [
+  { type:"relocation", label:"Housing",       key:"housing",   icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>` },
+  { type:"event",      label:"Food & dining", key:"food",      icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>` },
+  { type:"travel",     label:"Travel",        key:"travel",    icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 21 4s-2 0-3.5 1.5L14 9 5.8 7.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 3.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>` },
+  { type:"gadget",     label:"Gadgets & tech",key:"gadgets",   icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
+  { type:"event",      label:"Health & medical",key:"health",  icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>` },
+  { type:"relocation", label:"Education",     key:"education", icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>` },
+  { type:"travel",     label:"Clothing",      key:"clothing",  icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/></svg>` },
+  { type:"gadget",     label:"Entertainment", key:"entertain", icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>` },
+  { type:"event",      label:"Savings & investments",key:"savings",icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>` },
+  { type:"relocation", label:"Emergency fund", key:"emergency", icon:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>` },
 ];
+
+function getLifeInputs() {
+  return {
+    budget:      Number(document.getElementById("life-budget")?.value || 500000),
+    city:        document.getElementById("life-city")?.value || "Delhi",
+    family:      document.getElementById("life-family")?.value || "single",
+    members:     parseInt(document.getElementById("life-members")?.value) || 1,
+    kids:        document.getElementById("life-kids")?.value || "0",
+    lifestyle:   document.getElementById("life-lifestyle")?.value || "moderate",
+    incomeType:  document.getElementById("life-income-type")?.value || "salaried",
+    chronic:     document.getElementById("life-health-chronic")?.checked,
+    seniorParent:document.getElementById("life-health-senior")?.checked,
+    selfInsured: document.getElementById("life-health-insurance")?.checked,
+    gym:         document.getElementById("life-health-gym")?.checked,
+    homeLoan:    document.getElementById("life-emi-home")?.checked,
+    carLoan:     document.getElementById("life-emi-car")?.checked,
+    personalLoan:document.getElementById("life-emi-personal")?.checked,
+    hasSIP:      document.getElementById("life-emi-invest")?.checked,
+  };
+}
+
+function computeLifeAllocs(inp) {
+  // Base percentages (of spendable after savings/emergency carved out)
+  const allocs = {
+    housing:   0.35,
+    food:      0.15,
+    travel:    0.08,
+    gadgets:   0.06,
+    health:    0.06,
+    education: 0.00,
+    clothing:  0.05,
+    entertain: 0.05,
+    savings:   0.12,
+    emergency: 0.08,
+  };
+
+  // Family size multiplier on food & housing
+  const memberFactor = Math.min(inp.members / 2, 2.2);
+  allocs.food    = +(allocs.food    * memberFactor).toFixed(3);
+  allocs.housing = +(allocs.housing * (1 + (inp.members - 1) * 0.06)).toFixed(3);
+
+  // Kids → education
+  if (inp.kids !== "0") {
+    const numKids = inp.kids.startsWith("2") ? 2 : 1;
+    const isCollege = inp.kids.includes("college");
+    allocs.education = isCollege ? 0.12 * numKids : 0.08 * numKids;
+    allocs.travel   -= 0.02 * numKids;
+    allocs.entertain -= 0.01 * numKids;
+  }
+
+  // Health boosts
+  if (inp.chronic)      allocs.health += 0.05;
+  if (inp.seniorParent) allocs.health += 0.04;
+  if (inp.selfInsured)  allocs.health += 0.03;
+  if (inp.gym)          allocs.health += 0.02;
+
+  // EMIs / loans already committed — reduce discretionary
+  if (inp.homeLoan)    { allocs.housing += 0.05; allocs.travel -= 0.02; allocs.entertain -= 0.01; }
+  if (inp.carLoan)     { allocs.housing += 0.02; allocs.gadgets -= 0.01; }
+  if (inp.personalLoan){ allocs.savings -= 0.03; allocs.entertain -= 0.02; }
+  if (inp.hasSIP)      { allocs.savings += 0.05; allocs.entertain -= 0.02; allocs.clothing -= 0.01; }
+
+  // Lifestyle multiplier on discretionary
+  const lsMult = { frugal: 0.6, moderate: 1.0, comfortable: 1.3, premium: 1.7 }[inp.lifestyle] || 1;
+  ["travel","gadgets","entertain","clothing"].forEach(k => {
+    allocs[k] = +(allocs[k] * lsMult).toFixed(3);
+  });
+
+  // Freelance / variable income → bigger emergency fund
+  if (inp.incomeType === "freelance" || inp.incomeType === "business") {
+    allocs.emergency += 0.04;
+    allocs.savings   += 0.03;
+    allocs.entertain -= 0.02;
+  }
+  if (inp.incomeType === "retired") {
+    allocs.health    += 0.04;
+    allocs.travel    += 0.02;
+    allocs.savings   -= 0.02;
+  }
+
+  // High-cost cities → housing bump
+  if (["Mumbai","Bengaluru","Delhi"].includes(inp.city)) allocs.housing += 0.04;
+
+  // Normalise to sum = 1.0
+  const total = Object.values(allocs).reduce((a, b) => a + b, 0);
+  Object.keys(allocs).forEach(k => allocs[k] = Math.max(0, allocs[k] / total));
+  return allocs;
+}
+
 function renderLifePlan() {
-  const budget = Number(el.lifeBudget.value);
-  const city   = el.lifeCity.value;
-  const savings = Math.round(budget * 0.12);
-  const spendable = budget - savings;
-  const emergency = Math.round(budget * 0.08);
+  const inp    = getLifeInputs();
+  const budget = inp.budget;
+  const allocs = computeLifeAllocs(inp);
+
+  // Descriptions tailored to inputs
+  const kidDesc = inp.kids === "0" ? "" : ` + school/college fees for ${inp.kids.startsWith("2") ? "2 children" : "1 child"}`;
+  const descs = {
+    housing:   `Rent/EMI, maintenance, utilities, internet${inp.members > 2 ? ` (${inp.members}-member household)` : ""}`,
+    food:      `Groceries, dining out, home cooking for ${inp.members} ${inp.members === 1 ? "person" : "people"}`,
+    travel:    `Trips & vacations${inp.lifestyle === "premium" ? " — business/premium travel" : " — 2–3 trips/year"}`,
+    gadgets:   "Phone, laptop, accessories, subscriptions",
+    health:    `Doctor visits, medicines${inp.selfInsured ? ", insurance premium" : ""}${inp.chronic ? ", chronic care" : ""}${inp.seniorParent ? ", senior parent care" : ""}`,
+    education: `Tuition, school fees, books${kidDesc}`,
+    clothing:  `Apparel, footwear, seasonal wardrobe${inp.lifestyle === "premium" ? " (premium brands)" : ""}`,
+    entertain: "OTT, events, hobbies, weekend outings",
+    savings:   `Long-term savings${inp.hasSIP ? " including SIP contributions" : ""}, retirement corpus`,
+    emergency: `${inp.incomeType === "freelance" || inp.incomeType === "business" ? "Larger" : "Standard"} buffer — 3–6 months of expenses`,
+  };
 
   el.lifeResult.style.display = "block";
   el.lifeSummary.innerHTML = `
     <div class="life-stat"><div class="life-stat-label">Annual budget</div><div class="life-stat-value">${money(budget)}</div></div>
-    <div class="life-stat"><div class="life-stat-label">Suggested savings</div><div class="life-stat-value" style="color:var(--green)">${money(savings)}</div></div>
-    <div class="life-stat"><div class="life-stat-label">Emergency fund</div><div class="life-stat-value" style="color:var(--gold)">${money(emergency)}</div></div>
+    <div class="life-stat"><div class="life-stat-label">Savings target</div><div class="life-stat-value" style="color:var(--green)">${money(Math.round(budget * allocs.savings))}</div></div>
+    <div class="life-stat"><div class="life-stat-label">Emergency fund</div><div class="life-stat-value" style="color:var(--gold)">${money(Math.round(budget * allocs.emergency))}</div></div>
+    <div class="life-stat"><div class="life-stat-label">Monthly budget</div><div class="life-stat-value">${money(Math.round(budget / 12))}</div></div>
   `;
 
-  const spendBudget = spendable - emergency;
-  el.lifeCategories.innerHTML = LIFE_ALLOCS.map((cat) => {
-    const amount = Math.round(spendBudget * cat.pct);
-    const pctOfTotal = Math.round(cat.pct * 85); // visual scale
+  const maxPct = Math.max(...Object.values(allocs));
+  el.lifeCategories.innerHTML = LIFE_BASE_CATS.map((cat) => {
+    const pct = allocs[cat.key] || 0;
+    if (pct < 0.005) return ""; // hide negligible
+    const amount = Math.round(budget * pct);
+    const barW   = Math.round((pct / maxPct) * 100);
     return `
       <div class="life-cat">
         <div class="life-cat-icon ${cat.type}">${cat.icon}</div>
         <div>
           <div class="life-cat-name">${cat.label}</div>
-          <div class="life-cat-desc">${cat.desc}</div>
-          <div class="life-cat-bar-track" style="margin-top:10px"><div class="life-cat-bar-fill ${cat.type}" style="width:${pctOfTotal}%"></div></div>
+          <div class="life-cat-desc">${descs[cat.key] || ""}</div>
+          <div class="life-cat-bar-track" style="margin-top:10px"><div class="life-cat-bar-fill ${cat.type}" style="width:${barW}%"></div></div>
         </div>
         <div>
           <div class="life-cat-amount">${money(amount)}</div>
-          <div class="life-cat-pct">${Math.round(cat.pct*100)}% of spend</div>
+          <div class="life-cat-pct">${Math.round(pct * 100)}% of income</div>
         </div>
       </div>`;
   }).join("");
 
-  toast(`Budget allocated across ${LIFE_ALLOCS.length} life categories`, "success");
+  toast(`Budget personalised across ${LIFE_BASE_CATS.length} categories`, "success");
 }
 
 /* ═══════════════════════════════════════
@@ -2168,7 +2348,7 @@ function validateGoal(payload) {
     const GENERIC_VERBS = /^(travel|go|visit|explore|see|find|plan|get|do|make|have|take|want|need|book|check|look|somewhere|anywhere|a\s)/i;
     const prepositionDest = g.match(/\b(?:to|in|at|for)\s+([a-z][a-z]+)/gi) || [];
     const hasPrepositionDest = prepositionDest.some(m => !GENERIC_VERBS.test(m.replace(/^(to|in|at|for)\s+/i, "")));
-    const hasKnownPlace = /\b(goa|delhi|mumbai|bangalore|bengaluru|jaipur|manali|kashmir|kerala|ooty|shimla|agra|varanasi|coorg|pondicherry|andaman|leh|ladakh|udaipur|mysore|mysuru|kolkata|hyderabad|chennai|pune|amritsar|rishikesh|himachal|rajasthan|uttarakhand|darjeeling|sikkim|spiti|thailand|bali|singapore|dubai|europe|london|paris|vietnam|nepal|sri lanka|maldives)\b/i.test(payload.goal);
+    const hasKnownPlace = /\b(goa|delhi|ncr|mumbai|bombay|bangalore|bengaluru|blr|jaipur|manali|kashmir|kerala|ooty|shimla|agra|varanasi|coorg|kodagu|pondicherry|puducherry|andaman|leh|ladakh|udaipur|mysore|mysuru|kolkata|calcutta|hyderabad|hyd|chennai|madras|pune|amritsar|rishikesh|haridwar|himachal|rajasthan|uttarakhand|darjeeling|sikkim|spiti|mcleod|dalhousie|mussoorie|nainital|auli|munnar|alleppey|alappuzha|kochi|cochin|varkala|thailand|bangkok|phuket|bali|singapore|dubai|uae|abu dhabi|doha|qatar|europe|london|paris|amsterdam|rome|barcelona|istanbul|vietnam|hanoi|ho chi minh|nepal|kathmandu|sri lanka|colombo|maldives|mauritius|malaysia|kuala lumpur|japan|tokyo|hong kong|new york|usa)\b/i.test(payload.goal);
     const hasDestination = hasPrepositionDest || hasKnownPlace;
     const hasDuration = /\b\d+\s*(day|night|week|hr|hour)/i.test(g);
     if (!hasDestination) missing.push({ key: "destination", question: "Where are you going?", chips: ["Goa","Manali","Jaipur","Kerala","Ladakh","Thailand"] });
@@ -2181,7 +2361,7 @@ function validateGoal(payload) {
   }
 
   if (type === "relocation") {
-    const hasDest = /\b(delhi|mumbai|bangalore|bengaluru|hyderabad|chennai|kolkata|pune|ahmedabad|jaipur|lucknow|surat|nagpur|noida|gurugram|gurgaon)\b/i.test(payload.goal);
+    const hasDest = /\b(delhi|ncr|mumbai|bombay|bangalore|bengaluru|blr|hyderabad|hyd|chennai|madras|kolkata|calcutta|pune|ahmedabad|jaipur|lucknow|surat|nagpur|noida|gurugram|gurgaon|indore|bhopal|chandigarh|kochi|cochin|coimbatore|vizag|visakhapatnam|mysore|mysuru|vadodara|baroda|patna|bhubaneswar|thiruvananthapuram|trivandrum)\b/i.test(payload.goal);
     if (!hasDest) missing.push({ key: "destination", question: "Which city are you relocating to?", chips: ["Bengaluru","Mumbai","Hyderabad","Pune","Chennai","Delhi"] });
   }
 
@@ -2310,7 +2490,54 @@ el.clearHistoryBtn?.addEventListener("click", () => {
 el.lifeBudget?.addEventListener("input", () => {
   el.lifeBudgetOutput.textContent = money(el.lifeBudget.value);
 });
-el.lifePlanBtn?.addEventListener("click", renderLifePlan);
+el.lifePlanBtn?.addEventListener("click", () => {
+  saveLifeProfile();
+  renderLifePlan();
+});
+
+// ── Life profile persistence (per user) ──
+function lifeProfileKey() {
+  const uid = window.__fbUser?.uid || window.__fbUser?.email || "guest";
+  return `costpilot_life_${uid}`;
+}
+
+function saveLifeProfile() {
+  try {
+    const inp = getLifeInputs();
+    localStorage.setItem(lifeProfileKey(), JSON.stringify(inp));
+  } catch {}
+}
+
+function restoreLifeProfile() {
+  try {
+    const raw = localStorage.getItem(lifeProfileKey());
+    if (!raw) return;
+    const inp = JSON.parse(raw);
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    const chk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    if (inp.budget)      { set("life-budget", inp.budget); el.lifeBudgetOutput.textContent = money(inp.budget); }
+    if (inp.city)        set("life-city", inp.city);
+    if (inp.family)      set("life-family", inp.family);
+    if (inp.members)     set("life-members", inp.members);
+    if (inp.kids)        set("life-kids", inp.kids);
+    if (inp.lifestyle)   set("life-lifestyle", inp.lifestyle);
+    if (inp.incomeType)  set("life-income-type", inp.incomeType);
+    chk("life-health-chronic",   inp.chronic);
+    chk("life-health-senior",    inp.seniorParent);
+    chk("life-health-insurance", inp.selfInsured);
+    chk("life-health-gym",       inp.gym);
+    chk("life-emi-home",         inp.homeLoan);
+    chk("life-emi-car",          inp.carLoan);
+    chk("life-emi-personal",     inp.personalLoan);
+    chk("life-emi-invest",       inp.hasSIP);
+    toast("Life profile restored", "default");
+  } catch {}
+}
+
+// Restore when user navigates to Life view — only after auth is resolved
+document.addEventListener("viewchange:life", () => {
+  if (window.__fbUser) restoreLifeProfile();
+});
 
 /* ═══════════════════════════════════════
    KEYBOARD SHORTCUTS
