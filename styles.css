@@ -540,6 +540,24 @@ ol,ul{margin:0;padding:0;list-style:none}
 .detail-actions{display:flex;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--border)}
 .detail-actions .btn-primary{flex:1;min-width:140px}
 
+/* ── TRAVEL PACKAGES ── */
+.travel-packages-section{grid-column:1/-1;margin-top:4px}
+.pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:640px){.pkg-grid{grid-template-columns:1fr}}
+.pkg-card{
+  border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:12px;display:grid;gap:8px;background:var(--paper);
+}
+.pkg-card.pkg-over{border-color:#f0a0a0;background:rgba(240,100,100,.04)}
+.pkg-tier{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pkg-total{font-size:1.15rem;font-weight:800;color:var(--ink)}
+.pkg-row{display:flex;gap:8px;align-items:flex-start}
+.pkg-icon{font-size:1rem;line-height:1.4}
+.pkg-label{font-size:.78rem;font-weight:600;color:var(--ink)}
+.pkg-book-link{font-size:.72rem;color:var(--green-dk);text-decoration:none;font-weight:500}
+.pkg-book-link:hover{text-decoration:underline}
+.pkg-extras{font-size:.72rem;color:var(--muted);padding-top:2px;border-top:1px solid var(--border)}
+
 /* ══ ACT VIEW ══ */
 .act-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .act-card{

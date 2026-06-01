@@ -1058,6 +1058,48 @@ function getPriceComparison(type, bucketLabel, amount) {
   return rows;
 }
 
+function renderTravelPackages() {
+  const pkgs = state.lastResult?.travel_packages;
+  if (!pkgs?.length || state.lastResult?.constraints?.type !== "travel") return "";
+  const budget = state.lastResult?.constraints?.budget || 0;
+
+  return `<div class="detail-section travel-packages-section">
+    <div class="detail-sec-label">
+      Live package options
+      <span class="live-price-badge" style="margin-left:6px">Live</span>
+    </div>
+    <div class="pkg-grid">
+      ${pkgs.map(pkg => {
+        const over = budget > 0 && pkg.total > budget;
+        const delta = budget > 0 ? Math.abs(pkg.total - budget) : 0;
+        const deltaLabel = budget > 0
+          ? `<span class="${over ? "live-over" : "live-under"}">${over ? "↑" : "↓"} ${money(delta)} ${over ? "over" : "under"} budget</span>`
+          : "";
+        return `<div class="pkg-card ${over ? "pkg-over" : ""}">
+          <div class="pkg-tier">${pkg.tier}</div>
+          <div class="pkg-total">${money(pkg.total)}</div>
+          ${deltaLabel}
+          <div class="pkg-row">
+            <span class="pkg-icon">✈️</span>
+            <div>
+              <div class="pkg-label">${pkg.flight_operator || "Flight"} · ${money(pkg.flight_price)}</div>
+              <a class="pkg-book-link" href="${pkg.flight_url}" target="_blank" rel="noopener noreferrer">Book on ${pkg.flight_source || "MakeMyTrip"}</a>
+            </div>
+          </div>
+          <div class="pkg-row">
+            <span class="pkg-icon">🏨</span>
+            <div>
+              <div class="pkg-label">${pkg.hotel_name || "Hotel"} · ${money(pkg.hotel_per_night)}/night × ${pkg.nights}</div>
+              <a class="pkg-book-link" href="${pkg.hotel_url}" target="_blank" rel="noopener noreferrer">Book on ${pkg.hotel_source || "MakeMyTrip"}</a>
+            </div>
+          </div>
+          ${pkg.daily_extras > 0 ? `<div class="pkg-extras">+ ${money(pkg.daily_extras)}/day for food, transport & activities</div>` : ""}
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
 function renderPriceComparison(plan, type, goal) {
   if (!plan?.cost_breakdown?.length) return "";
 
@@ -1195,6 +1237,7 @@ function selectPlan(planId) {
           </div>
         </div>
       </div>
+      ${renderTravelPackages()}
       <div class="detail-actions">
         <button class="btn-primary" type="button" id="choose-plan-btn">Choose ${plan.name}</button>
         <button class="btn-ghost" type="button" id="copy-detail-btn">

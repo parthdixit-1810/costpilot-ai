@@ -274,7 +274,7 @@ def build_plans(p: dict[str, Any], llm: dict[str, Any] | None = None, live_price
 
     return plans
 
-def full_result(p: dict[str, Any], llm: dict[str, Any] | None = None, live_prices: dict | None = None) -> dict[str, Any]:
+def full_result(p: dict[str, Any], llm: dict[str, Any] | None = None, live_prices: dict | None = None, travel_packages: list | None = None) -> dict[str, Any]:
     cfg   = TYPE_CONFIG[p["type"]]
     plans = build_plans(p, llm, live_prices)
 
@@ -322,9 +322,10 @@ def full_result(p: dict[str, Any], llm: dict[str, Any] | None = None, live_price
             {"label": "Optimizer scored four routes", "status": "done"},
             {"label": "Explanation agent wrote rationale", "status": "done"},
         ],
-        "plans":           plans,
-        "knowledge_graph": {"nodes": cfg["buckets"]},
-        "llm_notes":       llm or {"mode": "mock", "reason": "No API key set (ANTHROPIC_API_KEY or GEMINI_API_KEY)"},
+        "plans":            plans,
+        "knowledge_graph":  {"nodes": cfg["buckets"]},
+        "llm_notes":        llm or {"mode": "mock", "reason": "No API key set (ANTHROPIC_API_KEY or GEMINI_API_KEY)"},
+        "travel_packages":  travel_packages or [],
     }
 
     entry = {
@@ -394,42 +395,145 @@ def _extract_destination(goal: str) -> str:
             return m.group(1).strip()
     return ""
 
-def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
-    """
-    Use Gemini 2.0 Flash with Google Search grounding to fetch current
-    real-world prices for each cost bucket. Returns a dict keyed by
-    bucket label with {low, high, typical, source, currency} or None
-    if no API key / search fails.
-    """
+def _gemini_search(prompt: str, max_tokens: int = 700) -> dict | None:
+    """Call Gemini with Google Search grounding; return parsed JSON or None."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
+    url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
+    body = json.dumps({
+        "tools": [{"google_search": {}}],
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens},
+    }).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            data = json.loads(resp.read())
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        for fence in ("```json", "```"):
+            if text.startswith(fence):
+                text = text[len(fence):]
+        return json.loads(text.rstrip("`").strip())
+    except Exception as e:
+        print(f"[gemini_search] error: {e}", flush=True)
+        return None
+
+
+def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
+    """
+    Use Gemini + Google Search to find real current flight & hotel prices
+    and return 3 combinable packages (budget / comfort / premium).
+    Each package has flight, hotel, and estimated extras so the user
+    sees an actual bookable combination with sources.
+    """
+    origin   = p.get("origin", "Delhi")
+    duration = max(1, int(p.get("duration", 3)))
+    goal     = p.get("goal", "")
+    dest     = _extract_destination(goal) or "Goa"
+    nights   = max(1, duration - 1)
+
+    prompt = (
+        f"Search Google right now for the LOWEST current prices (INR) for a {duration}-day trip "
+        f"from {origin} to {dest} ({nights} nights).\n\n"
+        f"Find:\n"
+        f"A) Budget option: cheapest one-way economy flight/train {origin}→{dest}, "
+        f"cheapest decent hotel/hostel/OYO in {dest} per night\n"
+        f"B) Comfort option: mid-range flight, 3-star hotel per night\n"
+        f"C) Premium option: premium flight or upgrade, 4-5 star hotel per night\n\n"
+        f"Also estimate per day: food (INR), local transport (INR), activities (INR) for {dest}.\n\n"
+        f"Return ONLY this exact JSON (integers only, no ranges, use real searched values):\n"
+        f'{{\n'
+        f'  "destination": "{dest}",\n'
+        f'  "origin": "{origin}",\n'
+        f'  "nights": {nights},\n'
+        f'  "per_day_extras": {{"food": 0, "local_transport": 0, "activities": 0}},\n'
+        f'  "packages": [\n'
+        f'    {{"tier":"Budget","flight_price":0,"flight_source":"","flight_operator":"",'
+        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","total":0}},\n'
+        f'    {{"tier":"Comfort","flight_price":0,"flight_source":"","flight_operator":"",'
+        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","total":0}},\n'
+        f'    {{"tier":"Premium","flight_price":0,"flight_source":"","flight_operator":"",'
+        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","total":0}}\n'
+        f'  ]\n'
+        f'}}'
+    )
+
+    raw = _gemini_search(prompt, max_tokens=800)
+    if not raw or not isinstance(raw.get("packages"), list):
+        return None
+
+    # Compute totals if model left them as 0
+    extras = raw.get("per_day_extras") or {}
+    daily_extra = (
+        int(extras.get("food", 0)) +
+        int(extras.get("local_transport", 0)) +
+        int(extras.get("activities", 0))
+    )
+    nights_val = int(raw.get("nights", nights))
+
+    packages = []
+    for pkg in raw["packages"]:
+        if not isinstance(pkg, dict):
+            continue
+        fp  = int(pkg.get("flight_price", 0))
+        hpp = int(pkg.get("hotel_per_night", 0))
+        if fp <= 0 and hpp <= 0:
+            continue
+        total = pkg.get("total") or (fp + hpp * nights_val + daily_extra * nights_val)
+        # Build deep booking links
+        dest_slug   = dest.lower().replace(" ", "-")
+        origin_slug = origin.lower().replace(" ", "-")
+        dest_up     = dest.replace("-", " ").title()
+        origin_up   = origin.replace("-", " ").title()
+        fs = (pkg.get("flight_source") or "").lower()
+        hs = (pkg.get("hotel_source") or "").lower()
+        flight_url = (
+            f"https://www.makemytrip.com/flights/{origin_up}-to-{dest_up}.html" if "makemytrip" in fs else
+            f"https://www.cleartrip.com/flights/results?from={origin_up}&to={dest_up}&adults=1" if "cleartrip" in fs else
+            f"https://www.goibibo.com/flights/search/{origin_up}-to-{dest_up}-cheap-flights/" if "goibibo" in fs else
+            f"https://www.ixigo.com/flight/{origin_slug}-to-{dest_slug}/flights-from-{origin_slug}-to-{dest_slug}"
+        )
+        hotel_url = (
+            f"https://www.oyorooms.com/search?location={dest_up}" if "oyo" in hs else
+            f"https://www.makemytrip.com/hotels/{dest_slug}-hotels.html" if "makemytrip" in hs else
+            f"https://www.booking.com/search.html?ss={dest_up}" if "booking" in hs else
+            f"https://www.agoda.com/search?city={dest_up}" if "agoda" in hs else
+            f"https://www.makemytrip.com/hotels/{dest_slug}-hotels.html"
+        )
+        packages.append({
+            "tier":             pkg.get("tier", ""),
+            "flight_price":     fp,
+            "flight_operator":  pkg.get("flight_operator", ""),
+            "flight_source":    pkg.get("flight_source", ""),
+            "flight_url":       flight_url,
+            "hotel_per_night":  hpp,
+            "hotel_name":       pkg.get("hotel_name", ""),
+            "hotel_source":     pkg.get("hotel_source", ""),
+            "hotel_url":        hotel_url,
+            "nights":           nights_val,
+            "daily_extras":     daily_extra,
+            "total":            int(total),
+        })
+
+    print(f"[packages] fetched {len(packages)} travel packages for {origin}→{dest}", flush=True)
+    return packages if packages else None
+
+
+def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    For non-travel types: fetch bucket-level price ranges via Gemini Search.
+    For travel: use fetch_travel_packages instead (returns packages, not this dict).
+    """
+    if p.get("type") == "travel":
+        return None  # handled separately by fetch_travel_packages
 
     goal_type = p["type"]
     origin    = p.get("origin", "Delhi")
-    duration  = p.get("duration", 1)
-    budget    = p.get("budget", 25000)
     goal_text = p.get("goal", "")
 
-    if goal_type == "travel":
-        dest = _extract_destination(goal_text) or "Goa"
-        search_prompt = (
-            f"Search Google for CURRENT (2024-2025) prices in India for a {duration}-day trip "
-            f"from {origin} to {dest}. Find:\n"
-            f"1. Economy flight or train from {origin} to {dest} (one way, INR)\n"
-            f"2. Budget/mid-range hotel in {dest} per night (INR)\n"
-            f"3. Average daily food cost for a tourist in {dest} (INR)\n"
-            f"4. Popular tourist activities / entry fees in {dest} total (INR)\n"
-            f"5. Local transport / taxi cost per day in {dest} (INR)\n"
-            f"Return ONLY this JSON, no markdown:\n"
-            f'{{"Transit":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Stay":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Food":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Activities":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Local transport":{{"low":0,"high":0,"typical":0,"source":""}}}}'
-        )
-    elif goal_type == "gadget":
-        search_prompt = (
+    if goal_type == "gadget":
+        prompt = (
             f"Search Google for CURRENT (2024-2025) price in India for: {goal_text}. "
             f"Find prices on Flipkart, Amazon India, Croma, Reliance Digital. "
             f"Return ONLY this JSON, no markdown:\n"
@@ -441,7 +545,7 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
         )
     elif goal_type == "relocation":
         dest = _extract_destination(goal_text) or "Bangalore"
-        search_prompt = (
+        prompt = (
             f"Search Google for CURRENT (2024-2025) relocation costs in India from {origin} to {dest}. "
             f"Find: security deposit for 1BHK/2BHK, packers & movers cost, "
             f"basic furniture set, monthly commute cost, setup/utility deposits. "
@@ -453,7 +557,7 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
             f'"Setup":{{"low":0,"high":0,"typical":0,"source":""}}}}'
         )
     else:  # event
-        search_prompt = (
+        prompt = (
             f"Search Google for CURRENT (2024-2025) event costs in India for: {goal_text}. "
             f"Find: venue rental, catering per plate, decoration, photography, logistics. "
             f"Return ONLY this JSON, no markdown:\n"
@@ -464,29 +568,10 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
             f'"Logistics":{{"low":0,"high":0,"typical":0,"source":""}}}}'
         )
 
-    url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
-    body = json.dumps({
-        "tools": [{"google_search": {}}],
-        "contents": [{"parts": [{"text": search_prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 512},
-    }).encode()
-
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = json.loads(resp.read())
-        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        # Strip markdown fences if model wraps it
-        for fence in ("```json", "```"):
-            if text.startswith(fence):
-                text = text[len(fence):]
-        text = text.rstrip("`").strip()
-        parsed = json.loads(text)
+    result = _gemini_search(prompt)
+    if result:
         print(f"[prices] fetched live prices for {goal_type}", flush=True)
-        return parsed
-    except Exception as e:
-        print(f"[prices] fetch failed: {e}", flush=True)
-        return None
+    return result
 
 def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
     api_key = os.getenv("GEMINI_API_KEY")
@@ -609,20 +694,28 @@ class Handler(SimpleHTTPRequestHandler):
             import concurrent.futures
             p = normalize(read_json(self))
             llm = None
-            live_prices = None
-            # Run AI plan generation and live price fetch in parallel
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
-                ai_future    = ex.submit(lambda: call_claude(p) or call_gemini(p))
-                price_future = ex.submit(fetch_real_prices, p)
+            live_prices     = None
+            travel_packages = None
+            # Run AI plan + price fetch in parallel
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+                ai_future  = ex.submit(lambda: call_claude(p) or call_gemini(p))
+                pkg_future = ex.submit(fetch_travel_packages, p) if p["type"] == "travel" else None
+                prc_future = ex.submit(fetch_real_prices, p)    if p["type"] != "travel" else None
                 try:
                     llm = ai_future.result(timeout=35)
                 except Exception as exc:
                     llm = {"mode": "error", "reason": str(exc), "summary": {"headline": "AI call failed; local optimizer used."}}
-                try:
-                    live_prices = price_future.result(timeout=25)
-                except Exception:
-                    live_prices = None
-            self.send_json(full_result(p, llm, live_prices))
+                if pkg_future:
+                    try:
+                        travel_packages = pkg_future.result(timeout=25)
+                    except Exception:
+                        travel_packages = None
+                if prc_future:
+                    try:
+                        live_prices = prc_future.result(timeout=25)
+                    except Exception:
+                        live_prices = None
+            self.send_json(full_result(p, llm, live_prices, travel_packages))
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
