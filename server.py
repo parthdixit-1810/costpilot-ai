@@ -381,7 +381,7 @@ def _parse_llm_text(text: str) -> dict[str, Any]:
 
 # ── GEMINI AI CALL (stdlib only — no extra packages) ─────────────────────────
 
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 
 def _extract_destination(goal: str) -> str:
@@ -404,7 +404,7 @@ def _gemini_search(prompt: str, max_tokens: int = 700) -> dict | None:
     body = json.dumps({
         "tools": [{"google_search": {}}],
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens},
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens, "thinkingConfig": {"thinkingBudget": 0}},
     }).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
@@ -586,6 +586,7 @@ def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
             "responseMimeType": "application/json",
             "maxOutputTokens": 1024,
             "temperature": 0.4,
+            "thinkingConfig": {"thinkingBudget": 0},
         },
     }).encode()
 
