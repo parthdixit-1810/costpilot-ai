@@ -281,7 +281,7 @@ function toast(msg, type = "default", duration = 3200) {
    VIEW ROUTING
 ═══════════════════════════════════════ */
 const VIEWS = ["home", "plan", "compare", "act", "life", "history"];
-function showView(viewId) {
+function showView(viewId, { pushHistory = true } = {}) {
   if (!VIEWS.includes(viewId)) return;
   state.view = viewId;
   VIEWS.forEach((v) => {
@@ -302,7 +302,31 @@ function showView(viewId) {
   el.progressFill.style.width = (pct[viewId] || 0) + "%";
   window.scrollTo({ top: 0, behavior: "smooth" });
   if (viewId === "plan") renderDNAInsight();
+  // Update browser history
+  if (pushHistory) {
+    const url = new URL(location.href);
+    url.searchParams.set("view", viewId);
+    history.pushState({ view: viewId }, "", url);
+  }
 }
+
+// Handle browser back/forward
+window.addEventListener("popstate", (e) => {
+  const viewId = e.state?.view || new URLSearchParams(location.search).get("view") || "plan";
+  showView(viewId, { pushHistory: false });
+});
+
+// On page load, restore view from URL
+(function restoreViewFromURL() {
+  const viewId = new URLSearchParams(location.search).get("view") || "plan";
+  if (VIEWS.includes(viewId) && viewId !== "plan") {
+    showView(viewId, { pushHistory: false });
+  }
+  // Replace initial state so popstate fires correctly on first back
+  const url = new URL(location.href);
+  url.searchParams.set("view", viewId);
+  history.replaceState({ view: viewId }, "", url);
+})();
 
 /* ═══════════════════════════════════════
    JOURNEY STEPPER
@@ -2230,6 +2254,11 @@ function hideClarificationPanel() {
 }
 
 function validateAndGenerate() {
+  if (!window.__fbUser) {
+    document.getElementById("auth-overlay")?.classList.add("open");
+    if (typeof toast === "function") toast("Sign in to generate a plan", "default");
+    return;
+  }
   hideClarificationPanel();
   const payload = getPayload();
   const missing = validateGoal(payload);

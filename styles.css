@@ -348,7 +348,7 @@ ol,ul{margin:0;padding:0;list-style:none}
 .agent-stat strong{font-size:.84rem;font-weight:700}
 .graph-section{display:grid;gap:6px}
 .graph-label{font-size:.66rem;font-weight:700;color:var(--muted-lt);text-transform:uppercase;letter-spacing:.06em}
-.graph-nodes{display:flex;flex-wrap:wrap;gap:5px}
+.graph-nodes{display:flex;flex-wrap:nowrap;gap:5px;overflow-x:auto;padding-bottom:2px}
 .graph-node{
   display:inline-flex;align-items:center;height:26px;padding:0 10px;
   border-radius:999px;font-size:.72rem;font-weight:600;

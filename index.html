@@ -754,6 +754,21 @@
           userAvatar.style.display = "none";
           userMenu.style.display   = "none";
         }
+        window.__fbUser = user;
+      });
+
+      // ── AUTH GATE: intercept nav for unauthenticated users ──
+      document.addEventListener("click", (e) => {
+        const tab = e.target.closest("[data-view]");
+        if (!tab) return;
+        const view = tab.dataset.view;
+        if (view === "plan") return; // plan view is the landing, allow
+        if (!window.__fbUser) {
+          e.stopImmediatePropagation();
+          authOverlay.classList.add("open");
+          if (typeof toast === "function") toast("Sign in to access this feature", "default");
+        }
+      }, true /* capture so we run before app.js listeners */);
       });
 
       // ── AVATAR MENU TOGGLE ──
