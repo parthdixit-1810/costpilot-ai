@@ -572,11 +572,18 @@ function initWhatif(budget) {
   };
   el.whatifApply.onclick = () => {
     if (!state.lastPayload) return;
-    const newPayload = { ...state.lastPayload, budget: Number(el.whatifSlider.value) };
-    el.budget.value = newPayload.budget;
+    const newBudget = Number(el.whatifSlider.value);
+    const newPayload = { ...state.lastPayload, budget: newBudget };
+    // Sync plan-view budget slider range for this type, then set value
+    const type = state.lastPayload.type || state.type;
+    const r = BUDGET_RANGE[type] || BUDGET_RANGE.travel;
+    el.budget.min  = r.min;
+    el.budget.max  = r.max;
+    el.budget.step = r.step;
+    el.budget.value = Math.min(Math.max(newBudget, r.min), r.max);
     updateBudget();
     generatePlan(newPayload);
-    toast(`Re-running with ${money(newPayload.budget)} budget…`, "default");
+    toast(`Re-running with ${money(newBudget)} budget…`, "default");
   };
 }
 
@@ -594,10 +601,10 @@ function renderGraph(nodes = []) {
 ═══════════════════════════════════════ */
 // Budget range per goal type (min, max, step, ticks)
 const BUDGET_RANGE = {
-  travel:     { min: 5000,   max: 500000,  step: 5000,  ticks: ["₹5K","₹1L","₹2L","₹5L"] },
-  gadget:     { min: 5000,   max: 300000,  step: 5000,  ticks: ["₹5K","₹50K","₹1.5L","₹3L"] },
-  relocation: { min: 50000,  max: 2000000, step: 10000, ticks: ["₹50K","₹5L","₹10L","₹20L"] },
-  event:      { min: 10000,  max: 1000000, step: 10000, ticks: ["₹10K","₹2L","₹5L","₹10L"] },
+  travel:     { min: 5000,   max: 500000,  step: 5000,  ticks: ["₹5K","₹1L","₹2L","₹5L"],   durMax: 30 },
+  gadget:     { min: 5000,   max: 300000,  step: 5000,  ticks: ["₹5K","₹50K","₹1.5L","₹3L"], durMax: 14 },
+  relocation: { min: 50000,  max: 2000000, step: 10000, ticks: ["₹50K","₹5L","₹10L","₹20L"], durMax: 90 },
+  event:      { min: 10000,  max: 1000000, step: 10000, ticks: ["₹10K","₹2L","₹5L","₹10L"],  durMax: 60 },
 };
 
 function setType(type) {
@@ -616,7 +623,8 @@ function setType(type) {
 
   el.goal.value = t.goal;
   el.budget.value = Math.min(Math.max(t.budget, r.min), r.max);
-  el.duration.value = t.duration;
+  el.duration.max = r.durMax;
+  el.duration.value = Math.min(t.duration, r.durMax);
   updateBudget();
   el.intentChip.textContent = TYPE_LABELS[type];
   renderGraph(GRAPH_NODES[type]);
