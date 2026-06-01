@@ -471,71 +471,16 @@ function renderSavingsDiscovery(plans, budget, type) {
 /* ═══════════════════════════════════════
    CLAUDE AI NOTES
 ═══════════════════════════════════════ */
-const MOCK_NOTES = {
-  travel: {
-    assumptions: [
-      "Prices based on economy class travel and 3-star hotels unless stated",
-      "Travel dates assumed as upcoming weekend or nearest long weekend",
-      "Per-person cost unless goal specifies group size",
-    ],
-    risks: [
-      "Flight and hotel prices fluctuate — lock in early to avoid surges",
-      "Festival seasons (Diwali, Christmas) can push costs 30–50% higher",
-      "Visa fees and travel insurance not included in estimates",
-    ],
-  },
-  gadget: {
-    assumptions: [
-      "Prices based on current Indian e-commerce listings (Amazon/Flipkart)",
-      "Includes GST; import duty excluded for grey-market/international buys",
-      "Warranty assumed as Indian seller warranty (1 year unless noted)",
-    ],
-    risks: [
-      "Launch pricing often drops 10–15% after 4–6 weeks — wait if not urgent",
-      "Grey-market units may lack official warranty and service support",
-      "Stock availability varies; prices may differ at time of purchase",
-    ],
-  },
-  relocation: {
-    assumptions: [
-      "Rental estimates based on 1BHK/2BHK in mid-range locality",
-      "One-time setup cost (deposit, movers, furnishing) included in plans",
-      "Monthly recurring cost excludes EMIs on existing loans",
-    ],
-    risks: [
-      "Security deposit (2–3 months rent) is a large upfront outflow",
-      "Brokerage (0.5–1 month rent) adds to first-month cost in most cities",
-      "Utility setup and internet activation can take 1–2 weeks",
-    ],
-  },
-  event: {
-    assumptions: [
-      "Guest count assumed from goal; catering cost at ₹700–₹1,200 per plate",
-      "Venue assumed as banquet hall or open space (not 5-star hotel)",
-      "Photography, decor, and catering bundled in mid-range plan",
-    ],
-    risks: [
-      "Vendor availability drops sharply in peak season (Nov–Feb)",
-      "Last-minute bookings carry 15–25% premium on most services",
-      "Hidden costs: valet parking, power backup, overtime charges",
-    ],
-  },
-};
-
 function renderAiNotes(llmNotes) {
-  const isAI   = llmNotes && ["claude","gemini"].includes(llmNotes.mode);
-  const type   = state.lastResult?.constraints?.type || state.type || "travel";
-  const mock   = MOCK_NOTES[type] || MOCK_NOTES.travel;
+  if (!llmNotes || !["claude","gemini"].includes(llmNotes.mode)) { el.aiNotes.style.display = "none"; return; }
+  const assumptions = llmNotes.assumptions || [];
+  const risks       = llmNotes.risks || [];
+  if (!assumptions.length && !risks.length) { el.aiNotes.style.display = "none"; return; }
 
-  const assumptions = (isAI ? llmNotes.assumptions : null) || mock.assumptions;
-  const risks       = (isAI ? llmNotes.risks       : null) || mock.risks;
-
-  // Update header label based on source
   const header = el.aiNotes.querySelector(".ai-notes-header strong");
-  if (header) header.textContent = isAI ? `${llmNotes.mode === "gemini" ? "Gemini" : "Claude"} AI notes` : "Planner assumptions & risks";
+  if (header) header.textContent = llmNotes.mode === "gemini" ? "Gemini AI notes" : "Claude AI notes";
 
   el.aiNotes.style.display = "block";
-
   if (assumptions.length) {
     el.aiAssumptionsWrap.style.display = "block";
     el.aiAssumptions.innerHTML = assumptions.map((a) => `<li>${a}</li>`).join("");
