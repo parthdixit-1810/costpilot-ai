@@ -1929,6 +1929,12 @@ function computeLifeAllocs(inp) {
   // High-cost cities → housing bump
   if (["Mumbai","Bengaluru","Delhi"].includes(inp.city)) allocs.housing += 0.04;
 
+  // Floor key discretionary categories before normalisation — prevent over-squeezing
+  allocs.travel   = Math.max(allocs.travel,   0.04);
+  allocs.gadgets  = Math.max(allocs.gadgets,  0.02);
+  allocs.clothing = Math.max(allocs.clothing, 0.02);
+  allocs.entertain= Math.max(allocs.entertain,0.02);
+
   // Normalise to sum = 1.0
   const total = Object.values(allocs).reduce((a, b) => a + b, 0);
   Object.keys(allocs).forEach(k => allocs[k] = Math.max(0, allocs[k] / total));
@@ -2266,13 +2272,19 @@ function renderActiveAlerts() {
     </div>
     <div class="aa-list">
       ${alerts.map(a => {
-        const fired = a.base_cost <= a.threshold;
+        // Check against current selected plan if it matches the same goal type
+        const curPlan = state.lastResult?.plans?.find(p => p.id === state.selectedPlanId);
+        const curCost = (state.lastResult?.constraints?.type === a.type && curPlan) ? curPlan.total_cost : null;
+        const fired = curCost !== null && curCost <= a.threshold;
+        const saving = fired ? a.threshold - curCost : null;
         return `
           <div class="aa-item ${fired ? "aa-fired" : ""}">
             <div class="aa-name">${a.plan_name}</div>
             <div class="aa-meta">
-              Alert if below <strong>${money(a.threshold)}</strong>
-              ${fired ? `<span class="aa-tag">✓ Would fire now</span>` : `<span class="aa-tag aa-waiting">Watching…</span>`}
+              Notify if below <strong>${money(a.threshold)}</strong>
+              ${fired
+                ? `<span class="aa-tag">✓ Current plan ${money(curCost)} — saves ${money(saving)} vs target</span>`
+                : `<span class="aa-tag aa-waiting">Watching — regenerate plan to check latest price</span>`}
             </div>
             ${a.note ? `<div class="aa-note">${a.note}</div>` : ""}
             <button class="aa-dismiss" type="button" data-alert-id="${a.id}">Dismiss</button>
