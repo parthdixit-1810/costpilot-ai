@@ -162,9 +162,20 @@ def priority_adj(priority: str, variant_id: str) -> float:
     if priority == "quality": return  0.03 if variant_id in {"value", "premium"} else -0.01
     return 0.0
 
-def cost_breakdown(total: float, goal_type: str) -> list[dict[str, Any]]:
+def cost_breakdown(total: float, goal_type: str, live_prices: dict | None = None) -> list[dict[str, Any]]:
     cfg = TYPE_CONFIG[goal_type]
-    return [{"label": l, "amount": round(total * w)} for l, w in zip(cfg["buckets"], cfg["weights"], strict=True)]
+    rows = []
+    for l, w in zip(cfg["buckets"], cfg["weights"], strict=True):
+        row: dict[str, Any] = {"label": l, "amount": round(total * w)}
+        if live_prices and l in live_prices:
+            lp = live_prices[l]
+            if isinstance(lp, dict) and lp.get("typical", 0) > 0:
+                row["live_low"]     = int(lp.get("low", 0))
+                row["live_high"]    = int(lp.get("high", 0))
+                row["live_typical"] = int(lp["typical"])
+                row["live_source"]  = str(lp.get("source", "Web"))[:60]
+        rows.append(row)
+    return rows
 
 # ── DETERMINISTIC OPTIMIZER ──────────────────────────────────────────────────
 
@@ -213,7 +224,7 @@ def extract_title(goal: str, goal_type: str, origin: str) -> str:
             return f"{m.group(1)} trip from {origin}"
     return f"Trip from {origin}"
 
-def build_plans(p: dict[str, Any], llm: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def build_plans(p: dict[str, Any], llm: dict[str, Any] | None = None, live_prices: dict | None = None) -> list[dict[str, Any]]:
     cfg = TYPE_CONFIG[p["type"]]
     budget = p["budget"]
     # Cap duration factor so cheapest variant always stays within budget
@@ -248,7 +259,7 @@ def build_plans(p: dict[str, Any], llm: dict[str, Any] | None = None) -> list[di
             ),
             "quality_score": v["quality"],
             "explanation":   llm_plan.get("explanation") or v["explanation"],
-            "cost_breakdown": cost_breakdown(total, p["type"]),
+            "cost_breakdown": cost_breakdown(total, p["type"], live_prices),
             "tradeoffs": llm_plan.get("tradeoffs") or [
                 "Lower cost increases flexibility and coordination requirements.",
                 "Higher fit score means fewer weak links in the complete solution.",
@@ -263,9 +274,9 @@ def build_plans(p: dict[str, Any], llm: dict[str, Any] | None = None) -> list[di
 
     return plans
 
-def full_result(p: dict[str, Any], llm: dict[str, Any] | None = None) -> dict[str, Any]:
+def full_result(p: dict[str, Any], llm: dict[str, Any] | None = None, live_prices: dict | None = None) -> dict[str, Any]:
     cfg   = TYPE_CONFIG[p["type"]]
-    plans = build_plans(p, llm)
+    plans = build_plans(p, llm, live_prices)
 
     llm_summary = {}
     if llm:
@@ -371,6 +382,111 @@ def _parse_llm_text(text: str) -> dict[str, Any]:
 
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+
+def _extract_destination(goal: str) -> str:
+    """Pull destination city from free-text goal."""
+    import re
+    for pat in [r'\bto\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\b',
+                r'\bin\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\b',
+                r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+trip\b']:
+        m = re.search(pat, goal)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Use Gemini 2.0 Flash with Google Search grounding to fetch current
+    real-world prices for each cost bucket. Returns a dict keyed by
+    bucket label with {low, high, typical, source, currency} or None
+    if no API key / search fails.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+
+    goal_type = p["type"]
+    origin    = p.get("origin", "Delhi")
+    duration  = p.get("duration", 1)
+    budget    = p.get("budget", 25000)
+    goal_text = p.get("goal", "")
+
+    if goal_type == "travel":
+        dest = _extract_destination(goal_text) or "Goa"
+        search_prompt = (
+            f"Search Google for CURRENT (2024-2025) prices in India for a {duration}-day trip "
+            f"from {origin} to {dest}. Find:\n"
+            f"1. Economy flight or train from {origin} to {dest} (one way, INR)\n"
+            f"2. Budget/mid-range hotel in {dest} per night (INR)\n"
+            f"3. Average daily food cost for a tourist in {dest} (INR)\n"
+            f"4. Popular tourist activities / entry fees in {dest} total (INR)\n"
+            f"5. Local transport / taxi cost per day in {dest} (INR)\n"
+            f"Return ONLY this JSON, no markdown:\n"
+            f'{{"Transit":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Stay":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Food":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Activities":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Local transport":{{"low":0,"high":0,"typical":0,"source":""}}}}'
+        )
+    elif goal_type == "gadget":
+        search_prompt = (
+            f"Search Google for CURRENT (2024-2025) price in India for: {goal_text}. "
+            f"Find prices on Flipkart, Amazon India, Croma, Reliance Digital. "
+            f"Return ONLY this JSON, no markdown:\n"
+            f'{{"Device":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Warranty":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Accessories":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Discounts":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Resale buffer":{{"low":0,"high":0,"typical":0,"source":""}}}}'
+        )
+    elif goal_type == "relocation":
+        dest = _extract_destination(goal_text) or "Bangalore"
+        search_prompt = (
+            f"Search Google for CURRENT (2024-2025) relocation costs in India from {origin} to {dest}. "
+            f"Find: security deposit for 1BHK/2BHK, packers & movers cost, "
+            f"basic furniture set, monthly commute cost, setup/utility deposits. "
+            f"Return ONLY this JSON, no markdown:\n"
+            f'{{"Deposit":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Moving":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Furniture":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Commute":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Setup":{{"low":0,"high":0,"typical":0,"source":""}}}}'
+        )
+    else:  # event
+        search_prompt = (
+            f"Search Google for CURRENT (2024-2025) event costs in India for: {goal_text}. "
+            f"Find: venue rental, catering per plate, decoration, photography, logistics. "
+            f"Return ONLY this JSON, no markdown:\n"
+            f'{{"Venue":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Catering":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Decor":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Photo":{{"low":0,"high":0,"typical":0,"source":""}},'
+            f'"Logistics":{{"low":0,"high":0,"typical":0,"source":""}}}}'
+        )
+
+    url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
+    body = json.dumps({
+        "tools": [{"google_search": {}}],
+        "contents": [{"parts": [{"text": search_prompt}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 512},
+    }).encode()
+
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read())
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # Strip markdown fences if model wraps it
+        for fence in ("```json", "```"):
+            if text.startswith(fence):
+                text = text[len(fence):]
+        text = text.rstrip("`").strip()
+        parsed = json.loads(text)
+        print(f"[prices] fetched live prices for {goal_type}", flush=True)
+        return parsed
+    except Exception as e:
+        print(f"[prices] fetch failed: {e}", flush=True)
+        return None
 
 def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
     api_key = os.getenv("GEMINI_API_KEY")
@@ -490,13 +606,23 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({"error": "Unknown route"}, HTTPStatus.NOT_FOUND)
             return
         try:
+            import concurrent.futures
             p = normalize(read_json(self))
             llm = None
-            try:
-                llm = call_claude(p) or call_gemini(p)
-            except Exception as exc:
-                llm = {"mode": "error", "reason": str(exc), "summary": {"headline": "AI call failed; local optimizer used."}}
-            self.send_json(full_result(p, llm))
+            live_prices = None
+            # Run AI plan generation and live price fetch in parallel
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+                ai_future    = ex.submit(lambda: call_claude(p) or call_gemini(p))
+                price_future = ex.submit(fetch_real_prices, p)
+                try:
+                    llm = ai_future.result(timeout=35)
+                except Exception as exc:
+                    llm = {"mode": "error", "reason": str(exc), "summary": {"headline": "AI call failed; local optimizer used."}}
+                try:
+                    live_prices = price_future.result(timeout=25)
+                except Exception:
+                    live_prices = None
+            self.send_json(full_result(p, llm, live_prices))
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 

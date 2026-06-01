@@ -1154,9 +1154,22 @@ function selectPlan(planId) {
               const linksHtml = links.length
                 ? `<div class="book-links">${links.map(l=>`<a class="book-link" href="${l.url}" target="_blank" rel="noopener noreferrer">${l.label}</a>`).join("")}</div>`
                 : "";
+              const hasLive = b.live_typical > 0;
+              const liveBadge = hasLive
+                ? `<span class="live-price-badge" title="Live web price">Live</span>`
+                : "";
+              const liveRow = hasLive
+                ? `<div class="live-price-row">
+                    <span class="live-price-range">${money(b.live_low)}–${money(b.live_high)} <span class="live-price-src">(${b.live_source})</span></span>
+                    ${b.live_typical !== b.amount
+                      ? `<span class="live-price-delta ${b.live_typical < b.amount ? "live-under" : "live-over"}">${b.live_typical < b.amount ? "↓" : "↑"} ${money(Math.abs(b.live_typical - b.amount))} vs AI estimate</span>`
+                      : ""}
+                   </div>`
+                : "";
               return `<div class="bucket-row" style="animation-delay:${i*45}ms">
-                <div class="bucket-row-top"><span>${b.label}</span><strong>${money(b.amount)}</strong></div>
+                <div class="bucket-row-top"><span>${b.label} ${liveBadge}</span><strong>${money(b.amount)}</strong></div>
                 <div class="bucket-bar-track"><div class="bucket-bar-fill" style="width:${pct}%"></div></div>
+                ${liveRow}
                 ${linksHtml}
               </div>`;
             }).join("")}
