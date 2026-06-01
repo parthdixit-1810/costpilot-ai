@@ -900,6 +900,141 @@ function renderPlans(result) {
 }
 
 /* ═══════════════════════════════════════
+   PRICE COMPARISON TABLE
+═══════════════════════════════════════ */
+const PRICE_COMPARE_PLATFORMS = {
+  "Transit": [
+    { name: "Ixigo",       offset:  0.00 },
+    { name: "MakeMyTrip",  offset:  0.05 },
+    { name: "Cleartrip",   offset:  0.07 },
+    { name: "GoIbibo",     offset:  0.03 },
+    { name: "EaseMyTrip",  offset:  0.02 },
+    { name: "RedBus",      offset: -0.04 },
+  ],
+  "Stay": [
+    { name: "MakeMyTrip Hotels", offset:  0.04 },
+    { name: "OYO",               offset: -0.06 },
+    { name: "Booking.com",       offset:  0.08 },
+    { name: "Agoda",             offset:  0.02 },
+    { name: "Treebo",            offset: -0.03 },
+  ],
+  "Food": [
+    { name: "Zomato",     offset:  0.00 },
+    { name: "Swiggy",     offset:  0.04 },
+    { name: "EazyDiner",  offset: -0.05 },
+  ],
+  "Activities": [
+    { name: "Klook",          offset:  0.00 },
+    { name: "Thrillophilia",  offset: -0.04 },
+    { name: "BookMyShow",     offset:  0.06 },
+  ],
+  "Device": [
+    { name: "Amazon",       offset:  0.00 },
+    { name: "Flipkart",     offset: -0.03 },
+    { name: "Croma",        offset:  0.05 },
+    { name: "Vijay Sales",  offset:  0.03 },
+  ],
+  "Rent": [
+    { name: "NoBroker",      offset: -0.05 },
+    { name: "99acres",       offset:  0.03 },
+    { name: "MagicBricks",   offset:  0.04 },
+    { name: "Housing.com",   offset:  0.02 },
+  ],
+  "Venue": [
+    { name: "WedMeGood",    offset:  0.00 },
+    { name: "Venuelook",    offset: -0.04 },
+    { name: "WeddingWire",  offset:  0.06 },
+  ],
+};
+
+function getPriceComparison(type, bucketLabel, amount) {
+  // Find matching platform list (fuzzy match on label)
+  let platforms = null;
+  const labelLower = (bucketLabel || "").toLowerCase();
+  for (const key of Object.keys(PRICE_COMPARE_PLATFORMS)) {
+    if (labelLower.includes(key.toLowerCase()) || key.toLowerCase().includes(labelLower)) {
+      platforms = PRICE_COMPARE_PLATFORMS[key];
+      break;
+    }
+  }
+  // Fallback: try partial matches
+  if (!platforms) {
+    if (labelLower.includes("transit") || labelLower.includes("flight") || labelLower.includes("bus") || labelLower.includes("train")) platforms = PRICE_COMPARE_PLATFORMS["Transit"];
+    else if (labelLower.includes("stay") || labelLower.includes("hotel") || labelLower.includes("accommod")) platforms = PRICE_COMPARE_PLATFORMS["Stay"];
+    else if (labelLower.includes("food") || labelLower.includes("meal") || labelLower.includes("dining")) platforms = PRICE_COMPARE_PLATFORMS["Food"];
+    else if (labelLower.includes("activit") || labelLower.includes("tour") || labelLower.includes("entertain")) platforms = PRICE_COMPARE_PLATFORMS["Activities"];
+    else if (labelLower.includes("device") || labelLower.includes("gadget") || labelLower.includes("laptop") || labelLower.includes("phone")) platforms = PRICE_COMPARE_PLATFORMS["Device"];
+    else if (labelLower.includes("rent") || labelLower.includes("deposit") || labelLower.includes("broker")) platforms = PRICE_COMPARE_PLATFORMS["Rent"];
+    else if (labelLower.includes("venue") || labelLower.includes("hall") || labelLower.includes("wedding")) platforms = PRICE_COMPARE_PLATFORMS["Venue"];
+  }
+  if (!platforms || !amount) return null;
+
+  // Build rows: lo = amount*0.82, hi = amount*1.18, vary per platform by offset ±5%
+  const base = amount;
+  const rows = platforms.map(p => {
+    const mid = base * (1 + p.offset);
+    const lo  = Math.round(mid * 0.82);
+    const hi  = Math.round(mid * 1.18);
+    return { name: p.name, lo, hi, mid };
+  });
+
+  // Sort by mid price ascending to find best
+  rows.sort((a, b) => a.mid - b.mid);
+  return rows;
+}
+
+function renderPriceComparison(plan, type, goal) {
+  if (!plan?.cost_breakdown?.length) return "";
+
+  // Find top bucket by amount
+  const sorted = [...plan.cost_breakdown].sort((a, b) => b.amount - a.amount);
+  const top = sorted[0];
+  if (!top || !top.amount) return "";
+
+  const rows = getPriceComparison(type, top.label, top.amount);
+  if (!rows || !rows.length) return "";
+
+  const links = getBookingLinks(type, top.label, goal, top.amount);
+  const urlMap = {};
+  links.forEach(l => { urlMap[l.label] = l.url; });
+
+  // Find URL for each platform (best-effort match)
+  function findUrl(platformName) {
+    // Try exact match first
+    for (const [label, url] of Object.entries(urlMap)) {
+      if (label.toLowerCase() === platformName.toLowerCase()) return url;
+    }
+    // Try partial match
+    for (const [label, url] of Object.entries(urlMap)) {
+      if (label.toLowerCase().includes(platformName.toLowerCase().split(" ")[0]) ||
+          platformName.toLowerCase().includes(label.toLowerCase().split(" ")[0])) return url;
+    }
+    return "#";
+  }
+
+  const rowsHtml = rows.map((r, i) => {
+    const isBest = i === 0;
+    const url = findUrl(r.name);
+    return `<tr class="pct-row${isBest ? " pct-best" : ""}">
+      <td class="pct-name">${r.name}${isBest ? ' <span class="pct-badge">Best</span>' : ""}</td>
+      <td class="pct-range">${money(r.lo)}–${money(r.hi)}</td>
+      <td class="pct-action"><a class="pct-link" href="${url}" target="_blank" rel="noopener noreferrer">View →</a></td>
+    </tr>`;
+  }).join("");
+
+  return `<div class="price-compare-table">
+    <div class="pct-header">
+      <span class="pct-title">Compare prices · <em>${top.label}</em></span>
+      <span class="pct-sub">Estimated ranges</span>
+    </div>
+    <table class="pct-table">
+      <thead><tr><th>Platform</th><th>Est. Price</th><th></th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════
    SELECT PLAN
 ═══════════════════════════════════════ */
 function selectPlan(planId) {
@@ -951,6 +1086,11 @@ function selectPlan(planId) {
               </div>`;
             }).join("")}
           </div>
+          ${(()=>{
+            const planType = state.lastResult?.constraints?.type || state.type;
+            const goal = state.lastResult?.constraints?.goal || "";
+            return renderPriceComparison(plan, planType, goal);
+          })()}
         </div>
         <div style="display:grid;gap:14px;align-content:start">
           <div class="detail-section">
