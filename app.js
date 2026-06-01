@@ -558,6 +558,11 @@ function showSideBySide() {
    WHAT-IF SLIDER
 ═══════════════════════════════════════ */
 function initWhatif(budget) {
+  // Scale slider range to ±50% of plan budget, aligned to nearest step
+  const step = budget >= 500000 ? 25000 : budget >= 100000 ? 10000 : 5000;
+  el.whatifSlider.min  = Math.max(5000, Math.round(budget * 0.5 / step) * step);
+  el.whatifSlider.max  = Math.round(budget * 1.5 / step) * step;
+  el.whatifSlider.step = step;
   el.whatifSlider.value = budget;
   el.whatifOutput.textContent = money(budget);
   el.whatifBar.style.display = "block";
@@ -1264,7 +1269,7 @@ function renderHistoryView(history = [], isSavedTab = false) {
         <button class="btn-ghost btn-sm bookmark-btn ${savedState?"saved":""}" data-bookmark-id="${h.id || h.title}" type="button">
           ${savedState ? "Saved" : "Save"}
         </button>
-        ${h.goal ? `<button class="btn-outline btn-sm replay-btn" data-goal='${JSON.stringify({goal:h.goal,type:h.type||"travel",budget:h.budget})}' type="button">Re-run →</button>` : ""}
+        ${h.goal ? `<button class="btn-outline btn-sm replay-btn" data-goal="${JSON.stringify({goal:h.goal,type:h.type||"travel",budget:h.budget}).replace(/"/g,"&quot;")}" type="button">Re-run →</button>` : ""}
       </div>
     </div>`;
   }).join("");
