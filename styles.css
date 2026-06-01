@@ -89,7 +89,7 @@ ol,ul{margin:0;padding:0;list-style:none}
   display:grid;place-items:center;width:36px;height:36px;border-radius:10px;
   background:linear-gradient(135deg,var(--green),#0f7a8c);color:#fff;flex-shrink:0;
 }
-.brand-name{font-size:1.05rem;font-weight:800;letter-spacing:-.02em}
+.brand-name{font-size:1.05rem;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
 .brand-name em{color:var(--green);font-style:normal;font-weight:800}
 .nav-tabs{
   display:flex;gap:2px;padding:4px;
@@ -386,7 +386,7 @@ ol,ul{margin:0;padding:0;list-style:none}
 .trace-item.error{background:var(--rose-lt)}
 .trace-item.error .trace-dot{background:var(--rose)}
 @keyframes pulse-run{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}50%{box-shadow:0 0 0 5px rgba(37,99,235,0)}}
-.insight-card{padding:16px;border-radius:var(--r-sm);background:linear-gradient(135deg,var(--ink),#1a3028);display:grid;gap:3px}
+.insight-card{padding:16px;border-radius:var(--r-sm);background:linear-gradient(135deg,#0f2d23,#1a3028);display:grid;gap:3px}
 .insight-label{font-size:.63rem;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.08em}
 #current-insight{font-size:.88rem;color:rgba(255,255,255,.85);line-height:1.5}
 .agent-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px}
@@ -1315,11 +1315,18 @@ html[data-theme="dark"] .auth-modal {
   background: var(--surface);
   box-shadow: 0 24px 80px rgba(0,0,0,.5);
 }
+html[data-theme="dark"] .auth-modal-close {
+  background: var(--paper); border-color: var(--border); color: var(--muted);
+}
+html[data-theme="dark"] .auth-title { color: var(--ink); }
+html[data-theme="dark"] .auth-label { color: var(--muted); }
+html[data-theme="dark"] .auth-brand { color: var(--ink); }
 html[data-theme="dark"] .auth-input {
   background: var(--paper);
   border-color: var(--border);
   color: var(--ink);
 }
+html[data-theme="dark"] .auth-input::placeholder { color: var(--muted-lt); }
 html[data-theme="dark"] .auth-input:focus { border-color: var(--green); }
 html[data-theme="dark"] .auth-tabs { background: var(--paper); }
 html[data-theme="dark"] .auth-tab { color: var(--muted); }
