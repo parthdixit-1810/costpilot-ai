@@ -5,7 +5,7 @@ const PROGRESS_KEY = "costpilot_progress_v1";
 
 /* ── FORMAT ── */
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
-const money = (v) => inr.format(Math.round(Number(v) || 0));
+const money = (v) => { const n = Number(v); return inr.format(Math.round(!isFinite(n) ? 0 : n || 0)); };
 
 /* ── STATE ── */
 const state = {
@@ -422,6 +422,7 @@ async function copyPlan() {
    SAVINGS DISCOVERY
 ═══════════════════════════════════════ */
 function buildSavingsHints(plans, budget, type) {
+  if (!plans.length) return [];
   const cheapest = plans.reduce((a, b) => a.total_cost < b.total_cost ? a : b);
   const value    = plans.find((p) => p.id === "value");
   const fastest  = plans.find((p) => p.id === "fastest");
@@ -704,7 +705,7 @@ function getPayload() {
     goal:     el.goal.value.trim(),
     type:     state.type,
     budget:   Number(el.budget.value),
-    duration: Number(el.duration.value || 1),
+    duration: Math.min(Math.max(Number(el.duration.value) || 1, 1), BUDGET_RANGE[state.type]?.durMax || 30),
     origin:   el.origin.value,
     priority,
     options: {
@@ -905,6 +906,10 @@ el.planGrid.addEventListener("click", (e) => {
 function renderPlans(result) {
   state.lastResult = result;
   const plans = result.plans || [];
+  if (!plans.length) {
+    el.planGrid.innerHTML = `<div class="detail-empty"><p>No plans returned. Try adjusting your goal or budget.</p></div>`;
+    return;
+  }
   state.selectedPlanId = plans.find((p)=>p.id==="value")?.id || plans[0]?.id || null;
   state.comparePlanIds = [];
   state.compareMode    = false;
