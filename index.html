@@ -406,6 +406,10 @@
                 <button class="btn-outline btn-sm" type="button" id="export-pdf-btn">Export PDF</button>
                 <button class="btn-outline btn-sm" type="button" id="download-plan-btn">Download JSON</button>
                 <button class="btn-outline btn-sm" type="button" id="share-act-btn">Copy text</button>
+                <button class="btn-outline btn-sm" type="button" id="email-plan-btn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  Email plan
+                </button>
               </div>
             </article>
           </div>
@@ -533,37 +537,6 @@
       </div>
     </div>
 
-    <!-- ═══ ONBOARDING TOOLTIP ═══ -->
-    <div class="onboard-overlay" id="onboard-overlay" aria-hidden="true">
-      <div class="onboard-card" id="onboard-card">
-        <div class="onboard-steps">
-          <div class="onboard-step active" data-step="0">
-            <div class="onboard-icon"></div>
-            <h3>Describe your goal</h3>
-            <p>Tell CostPilot what you want to do — a trip, a gadget, a move, an event. Plain English, no forms to fill.</p>
-          </div>
-          <div class="onboard-step" data-step="1">
-            <div class="onboard-icon"></div>
-            <h3>Get 4 ranked plans</h3>
-            <p>The AI generates Cheapest, Fastest, Best Value, and Premium routes — each with full cost breakdown and trade-offs.</p>
-          </div>
-          <div class="onboard-step" data-step="2">
-            <div class="onboard-icon"></div>
-            <h3>Choose and act</h3>
-            <p>Compare side-by-side, tweak your budget with the what-if slider, then copy a link or set a price alert.</p>
-          </div>
-        </div>
-        <div class="onboard-dots" id="onboard-dots">
-          <span class="odot active" data-step="0"></span>
-          <span class="odot" data-step="1"></span>
-          <span class="odot" data-step="2"></span>
-        </div>
-        <div class="onboard-footer">
-          <button class="btn-ghost" type="button" id="onboard-skip">Skip</button>
-          <button class="btn-primary" type="button" id="onboard-next">Next →</button>
-        </div>
-      </div>
-    </div>
 
     <!-- ═══ MODAL OVERLAY ═══ -->
     <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
@@ -621,6 +594,21 @@
 
     <!-- PDF print frame (hidden, populated before window.print()) -->
     <div id="pdf-frame" aria-hidden="true"></div>
+
+    <!-- ═══ ONBOARDING TOUR ═══ -->
+    <div class="onboard-overlay" id="onboard-overlay" aria-modal="true" role="dialog">
+      <div class="onboard-spotlight" id="onboard-spotlight"></div>
+      <div class="onboard-tooltip" id="onboard-tooltip">
+        <div class="onboard-step-pills" id="onboard-step-pills"></div>
+        <div class="onboard-icon-wrap" id="onboard-icon-wrap"></div>
+        <h3 class="onboard-title" id="onboard-title"></h3>
+        <p class="onboard-desc" id="onboard-desc"></p>
+        <div class="onboard-actions">
+          <button class="btn-ghost btn-sm" type="button" id="onboard-skip">Skip tour</button>
+          <button class="btn-primary" type="button" id="onboard-next">Next →</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ═══ AUTH MODAL ═══ -->
     <div class="auth-overlay" id="auth-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
