@@ -150,8 +150,48 @@ ol,ul{margin:0;padding:0;list-style:none}
   margin-top:calc(var(--nav-h) + 3px);
   min-height:calc(100vh - var(--nav-h) - 3px);
 }
-.view{display:none;animation:view-in .28s var(--ease) both}
+.view{display:none;animation:view-in .28s var(--ease) both;position:relative;overflow:hidden}
 .view.active{display:block}
+
+/* Shared decorative background for all views */
+.view::before{
+  content:"";
+  position:absolute;inset:0;
+  pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(circle 6px at 88% 10%, var(--green) 100%, transparent 100%),
+    radial-gradient(circle 4px at 92% 22%, var(--green-dk) 100%, transparent 100%),
+    radial-gradient(circle 8px at 5%  18%, var(--green) 100%, transparent 100%),
+    radial-gradient(circle 5px at 75% 40%, var(--gold) 100%, transparent 100%),
+    radial-gradient(circle 6px at 94% 65%, var(--green) 100%, transparent 100%),
+    radial-gradient(circle 4px at 4%  75%, var(--gold) 100%, transparent 100%),
+    radial-gradient(circle 7px at 50% 88%, var(--green) 100%, transparent 100%),
+    radial-gradient(circle 5px at 18% 90%, var(--green-dk) 100%, transparent 100%),
+    radial-gradient(circle 9px at 82% 82%, var(--green) 100%, transparent 100%),
+    radial-gradient(circle 4px at 62% 6%,  var(--gold) 100%, transparent 100%),
+    /* Rings via radial-gradient border trick */
+    radial-gradient(circle 20px at 15% 12%, transparent 16px, var(--green) 17px, transparent 18px),
+    radial-gradient(circle 16px at 85% 55%, transparent 13px, var(--green-dk) 14px, transparent 15px),
+    radial-gradient(circle 13px at 8%  50%, transparent 10px, var(--gold) 11px, transparent 12px),
+    radial-gradient(circle 15px at 55% 92%, transparent 12px, var(--green) 13px, transparent 14px),
+    /* Dot grid - two tiled areas */
+    radial-gradient(circle 1.5px at 1.5px 1.5px, var(--green-dk) 100%, transparent 100%);
+  background-size:
+    auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,
+    auto,auto,auto,auto,
+    24px 24px;
+  background-repeat: no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,
+    no-repeat,no-repeat,no-repeat,no-repeat,
+    repeat;
+  background-position:
+    88% 10%,92% 22%,5% 18%,75% 40%,94% 65%,4% 75%,50% 88%,18% 90%,82% 82%,62% 6%,
+    15% 12%,85% 55%,8% 50%,55% 92%,
+    0 0;
+  opacity:0.55;
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 10%, rgba(0,0,0,0.6) 90%, transparent 100%);
+}
+/* Ensure view children sit above the pseudo bg */
+.view > *{position:relative;z-index:1}
 @keyframes view-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
 /* ── CARD ── */
@@ -200,7 +240,8 @@ ol,ul{margin:0;padding:0;list-style:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ══ HOME ══ */
-#view-home{background:var(--surface);position:relative;overflow:hidden}
+#view-home{background:var(--surface)}
+#view-home::before{display:none}/* Home uses its own richer SVG instead */
 .home-bg-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
 .home-wrap{position:relative;z-index:1;max-width:960px;margin:0 auto;
   padding:clamp(48px,8vw,100px) clamp(20px,4vw,48px);
