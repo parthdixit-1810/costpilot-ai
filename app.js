@@ -587,11 +587,30 @@ function renderGraph(nodes = []) {
 /* ═══════════════════════════════════════
    TYPE SWITCH
 ═══════════════════════════════════════ */
+// Budget range per goal type (min, max, step, ticks)
+const BUDGET_RANGE = {
+  travel:     { min: 5000,   max: 500000,  step: 5000,  ticks: ["₹5K","₹1L","₹2L","₹5L"] },
+  gadget:     { min: 5000,   max: 300000,  step: 5000,  ticks: ["₹5K","₹50K","₹1.5L","₹3L"] },
+  relocation: { min: 50000,  max: 2000000, step: 10000, ticks: ["₹50K","₹5L","₹10L","₹20L"] },
+  event:      { min: 10000,  max: 1000000, step: 10000, ticks: ["₹10K","₹2L","₹5L","₹10L"] },
+};
+
 function setType(type) {
   state.type = type;
   const t = TEMPLATES[type];
+  const r = BUDGET_RANGE[type] || BUDGET_RANGE.travel;
+
+  // Update slider range dynamically
+  el.budget.min  = r.min;
+  el.budget.max  = r.max;
+  el.budget.step = r.step;
+  const ticksEl  = el.budget.nextElementSibling;
+  if (ticksEl?.classList.contains("range-ticks")) {
+    ticksEl.innerHTML = r.ticks.map(t => `<span>${t}</span>`).join("");
+  }
+
   el.goal.value = t.goal;
-  el.budget.value = t.budget;
+  el.budget.value = Math.min(Math.max(t.budget, r.min), r.max);
   el.duration.value = t.duration;
   updateBudget();
   el.intentChip.textContent = TYPE_LABELS[type];
@@ -1867,7 +1886,9 @@ function getLifeInputs() {
   };
 }
 
-function computeLifeAllocs(inp) {
+function computeLifeAllocs(inp = {}) {
+  // Defaults for any missing fields
+  inp = { budget:500000, city:"Delhi", family:"single", members:1, kids:"0", lifestyle:"moderate", incomeType:"salaried", chronic:false, seniorParent:false, selfInsured:false, gym:false, homeLoan:false, carLoan:false, personalLoan:false, hasSIP:false, ...inp };
   // Base percentages (of spendable after savings/emergency carved out)
   const allocs = {
     housing:   0.35,
