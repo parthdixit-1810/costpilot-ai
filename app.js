@@ -2628,6 +2628,15 @@ el.clearHistoryBtn?.addEventListener("click", () => {
 el.lifeBudget?.addEventListener("input", () => {
   el.lifeBudgetOutput.textContent = money(el.lifeBudget.value);
 });
+
+// Show/hide family-extra fields based on family type
+const lifeFamilyExtra = document.getElementById("life-family-extra");
+function updateFamilyExtra() {
+  const val = document.getElementById("life-family")?.value || "single";
+  if (lifeFamilyExtra) lifeFamilyExtra.style.display = ["couple","family","joint"].includes(val) ? "" : "none";
+}
+document.getElementById("life-family")?.addEventListener("change", updateFamilyExtra);
+updateFamilyExtra(); // set initial state
 el.lifePlanBtn?.addEventListener("click", () => {
   saveLifeProfile();
   renderLifePlan();
@@ -2668,6 +2677,7 @@ function restoreLifeProfile() {
     chk("life-emi-car",          inp.carLoan);
     chk("life-emi-personal",     inp.personalLoan);
     chk("life-emi-invest",       inp.hasSIP);
+    updateFamilyExtra();
     toast("Life profile restored", "default");
   } catch {}
 }
@@ -2728,5 +2738,5 @@ updateSavedCount();
 loadFromURL();
 if (!window.location.hash) {
   showView("home");
-  setTimeout(showOnboarding, 600);
+  setTimeout(startOnboarding, 600);
 }
