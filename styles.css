@@ -768,6 +768,32 @@ html[data-theme="dark"] .modal-overlay{background:rgba(0,0,0,.7)}
 
 /* ══ LIFE EVENT PLANNER ══ */
 .life-form{padding:24px;display:flex;flex-direction:column;gap:18px}
+/* Life budget hint on Plan form */
+#life-budget-hint{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;padding:8px 12px;background:var(--green-lt);border-radius:8px;border:1px solid var(--green-dk)20}
+.life-hint-text{font-size:.78rem;color:var(--muted);line-height:1.4}
+.life-hint-text strong{color:var(--ink)}
+.life-hint-use{flex-shrink:0;font-size:.75rem;font-weight:700;color:var(--green-dk);background:transparent;border:1.5px solid var(--green-dk);border-radius:6px;padding:3px 10px;cursor:pointer}
+.life-hint-use:hover{background:var(--green-dk);color:#fff}
+
+/* Alerts badge on nav tab */
+.alerts-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--rose);color:#fff;font-size:.6rem;font-weight:800;margin-left:4px;line-height:1}
+
+/* Active alerts panel */
+.active-alerts-panel{padding:16px 20px;margin-bottom:20px}
+.aa-header{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:.85rem}
+.aa-header strong{flex:1}
+.aa-count{font-size:.72rem;color:var(--muted);background:var(--border);padding:2px 8px;border-radius:999px}
+.aa-list{display:flex;flex-direction:column;gap:10px}
+.aa-item{padding:10px 12px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.aa-item.aa-fired{border-color:var(--green-dk);background:var(--green-lt)}
+.aa-name{font-size:.83rem;font-weight:700;margin-bottom:3px}
+.aa-meta{font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.aa-tag{font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--green-lt);color:var(--green-dk)}
+.aa-tag.aa-waiting{background:var(--gold-lt);color:var(--gold)}
+.aa-note{font-size:.75rem;color:var(--muted-lt);margin-top:4px}
+.aa-dismiss{position:absolute;top:8px;right:8px;font-size:.7rem;color:var(--muted-lt);background:none;border:none;cursor:pointer;padding:2px 6px}
+.aa-dismiss:hover{color:var(--rose)}
+
 .life-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .life-checks{display:flex;flex-direction:column;gap:8px;margin-top:6px}
 .life-check{display:flex;align-items:center;gap:8px;font-size:.83rem;color:var(--muted);cursor:pointer;user-select:none}
