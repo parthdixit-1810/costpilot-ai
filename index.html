@@ -81,6 +81,25 @@
 
       <!-- ── HOME ── -->
       <div class="view" id="view-home">
+        <!-- Decorative background figures -->
+        <svg class="home-bg-svg" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <!-- Large soft circle top-right -->
+          <circle cx="88%" cy="-60" r="320" fill="var(--green)" opacity="0.045"/>
+          <!-- Medium circle bottom-left -->
+          <circle cx="-80" cy="92%" r="220" fill="var(--green-dk)" opacity="0.04"/>
+          <!-- Small accent circle mid-right -->
+          <circle cx="96%" cy="55%" r="110" fill="var(--gold)" opacity="0.05"/>
+          <!-- Thin ring top-left -->
+          <circle cx="12%" cy="18%" r="140" fill="none" stroke="var(--green)" stroke-width="1.5" opacity="0.09"/>
+          <!-- Grid dots pattern -->
+          <pattern id="dots" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="1.5" cy="1.5" r="1.5" fill="var(--green-dk)" opacity="0.18"/>
+          </pattern>
+          <rect x="60%" y="30%" width="340" height="260" fill="url(#dots)" opacity="0.4"/>
+          <!-- Diagonal line accent -->
+          <line x1="5%" y1="100%" x2="30%" y2="40%" stroke="var(--green)" stroke-width="1" opacity="0.06"/>
+          <line x1="8%" y1="100%" x2="33%" y2="40%" stroke="var(--green)" stroke-width="1" opacity="0.04"/>
+        </svg>
         <div class="home-wrap">
           <div class="home-badge"><span class="badge-pulse"></span>Personal Economic Copilot</div>
           <h1 class="home-title">Start with a goal.<br><span class="home-grad">Leave with a decision.</span></h1>

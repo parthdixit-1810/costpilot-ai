@@ -200,9 +200,9 @@ ol,ul{margin:0;padding:0;list-style:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ══ HOME ══ */
-#view-home{background:var(--surface)}
-.home-wrap{
-  max-width:960px;margin:0 auto;
+#view-home{background:var(--surface);position:relative;overflow:hidden}
+.home-bg-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.home-wrap{position:relative;z-index:1;max-width:960px;margin:0 auto;
   padding:clamp(48px,8vw,100px) clamp(20px,4vw,48px);
   display:grid;gap:36px;
 }
