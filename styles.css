@@ -191,7 +191,8 @@ ol,ul{margin:0;padding:0;list-style:none}
   mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 10%, rgba(0,0,0,0.6) 90%, transparent 100%);
 }
 /* Ensure view children sit above the pseudo bg */
-.view > *{position:relative;z-index:1}
+.view > .view-inner,.view > .view-header,.view > form,.view > div:not(.home-bg-svg){position:relative;z-index:1}
+.view-inner{position:relative;z-index:1}
 @keyframes view-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
 /* ── CARD ── */
