@@ -1099,7 +1099,10 @@ function renderTravelPackages() {
             <span class="pkg-icon">🏨</span>
             <div>
               <div class="pkg-label">${pkg.hotel_name || "Hotel"} · ${money(pkg.hotel_per_night)}/night × ${pkg.nights}</div>
-              <a class="pkg-book-link" href="${pkg.hotel_url}" target="_blank" rel="noopener noreferrer">Book on ${pkg.hotel_source || "MakeMyTrip"}</a>
+              ${pkg.hotel_address ? `<div class="pkg-sublabel">${pkg.hotel_address}</div>` : ""}
+              <a class="pkg-book-link" href="${pkg.hotel_url}" target="_blank" rel="noopener noreferrer">
+                Lowest on ${pkg.hotel_source || "Booking.com"} ↗
+              </a>
             </div>
           </div>
           ${pkg.daily_extras > 0 ? `<div class="pkg-extras">+ ${money(pkg.daily_extras)}/day for food, transport & activities</div>` : ""}

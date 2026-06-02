@@ -554,7 +554,9 @@ ol,ul{margin:0;padding:0;list-style:none}
 .pkg-row{display:flex;gap:8px;align-items:flex-start}
 .pkg-icon{font-size:1rem;line-height:1.4}
 .pkg-label{font-size:.78rem;font-weight:600;color:var(--ink)}
-.pkg-book-link{font-size:.72rem;color:var(--green-dk);text-decoration:none;font-weight:500}
+.pkg-sublabel{font-size:.69rem;color:var(--muted);margin-top:1px}
+.pkg-book-link{font-size:.72rem;color:var(--green-dk);text-decoration:none;font-weight:600}
+.pkg-book-link::before{content:"✓ ";font-size:.65rem;opacity:.7}
 .pkg-book-link:hover{text-decoration:underline}
 .pkg-extras{font-size:.72rem;color:var(--muted);padding-top:2px;border-top:1px solid var(--border)}
 

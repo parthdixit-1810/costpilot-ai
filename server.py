@@ -403,8 +403,8 @@ def _extract_destination(goal: str) -> str:
             return m.group(1).strip()
     return ""
 
-def _gemini_search(prompt: str, max_tokens: int = 700) -> dict | None:
-    """Call Gemini with Google Search grounding; return parsed JSON or None."""
+def _gemini_raw_text(prompt: str, max_tokens: int = 1000) -> str | None:
+    """Call Gemini with Google Search grounding; return raw text or None."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
@@ -416,15 +416,68 @@ def _gemini_search(prompt: str, max_tokens: int = 700) -> dict | None:
     }).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
-        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        return next((p.get("text","") for p in parts if p.get("text")), "").strip()
+    except Exception as e:
+        print(f"[gemini_raw] error: {e}", flush=True)
+        return None
+
+def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800) -> dict | None:
+    """Call Gemini without tools to convert raw research text into strict JSON."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
+    prompt = (
+        f"Extract the key facts from the research below and return ONLY valid JSON matching this schema exactly. "
+        f"No prose, no markdown, no explanation — just the JSON object.\n\n"
+        f"Schema:\n{json_schema}\n\n"
+        f"Research:\n{raw_text}"
+    )
+    body = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.1,
+            "maxOutputTokens": max_tokens,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read())
+        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        text = next((p.get("text","") for p in parts if p.get("text")), "").strip()
         for fence in ("```json", "```"):
             if text.startswith(fence):
                 text = text[len(fence):]
         return json.loads(text.rstrip("`").strip())
     except Exception as e:
-        print(f"[gemini_search] error: {e}", flush=True)
+        print(f"[gemini_to_json] error: {e}", flush=True)
+        return None
+
+def _gemini_search(prompt: str, max_tokens: int = 700) -> dict | None:
+    """Legacy: Call Gemini with Google Search grounding; return parsed JSON or None."""
+    raw = _gemini_raw_text(prompt, max_tokens)
+    if not raw:
+        return None
+    # Try direct JSON parse first
+    try:
+        text = raw.strip()
+        for fence in ("```json", "```"):
+            if text.startswith(fence):
+                text = text[len(fence):]
+        text = text.rstrip("`").strip()
+        if not text.startswith("{"):
+            import re as _re
+            m = _re.search(r'\{[\s\S]*\}', text)
+            if m:
+                text = m.group(0)
+        return json.loads(text)
+    except Exception:
         return None
 
 
@@ -450,17 +503,23 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
         transport_note = f"Use {transport} as the mode of transport"
 
     prompt = (
-        f"Search Google right now for the LOWEST current prices (INR) for a {duration}-day trip "
-        f"from {origin} to {dest} ({nights} nights) for {pax_note}.\n\n"
+        f"Search Google right now for a {duration}-day trip from {origin} to {dest} "
+        f"({nights} nights) for {pax_note}. Find SPECIFIC named hotels/hostels with REAL prices.\n\n"
         f"{transport_note}.\n\n"
-        f"Find:\n"
-        f"A) Budget option: cheapest transport {origin}→{dest} (consider all modes: flight/train/bus/cab), "
-        f"cheapest decent hotel/hostel/OYO in {dest} per night\n"
-        f"B) Comfort option: mid-range transport option, 3-star hotel per night\n"
-        f"C) Premium option: premium transport or upgrade, 4-5 star hotel per night\n\n"
-        f"Scale all prices by {travellers} traveller(s) where applicable (transport, food).\n"
+        f"For each of 3 tiers (Budget/Comfort/Premium):\n"
+        f"1. TRANSPORT: Find a specific operator/train/flight number and its price from {origin} to {dest}. "
+        f"Check MakeMyTrip, Ixigo, GoIbibo, Cleartrip, IRCTC and use the cheapest source.\n"
+        f"2. HOTEL: Find a SPECIFIC named hotel or hostel in {dest}. "
+        f"Check its price on MakeMyTrip, Booking.com, Goibibo, OYO, Agoda — "
+        f"use the site with the LOWEST price per night and name that site.\n\n"
+        f"Tiers:\n"
+        f"- Budget: cheapest hostel/OYO/guesthouse, cheapest transport mode (bus/train/flight)\n"
+        f"- Comfort: named 3-star hotel, mid-range transport\n"
+        f"- Premium: named 4-5 star hotel, best transport option\n\n"
+        f"Scale transport prices by {travellers} traveller(s). "
         f"Also estimate per day: food (INR), local transport (INR), activities (INR) for {dest}.\n\n"
-        f"Return ONLY this exact JSON (integers only, no ranges, use real searched values):\n"
+        f"Return ONLY this exact JSON (integers only, no ranges, use REAL searched values, "
+        f"hotel_name must be a real specific property name, hotel_source must be the cheapest site):\n"
         f'{{\n'
         f'  "destination": "{dest}",\n'
         f'  "origin": "{origin}",\n'
@@ -468,17 +527,32 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
         f'  "per_day_extras": {{"food": 0, "local_transport": 0, "activities": 0}},\n'
         f'  "packages": [\n'
         f'    {{"tier":"Budget","flight_price":0,"flight_source":"","flight_operator":"",'
-        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","total":0}},\n'
+        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","hotel_address":"","total":0}},\n'
         f'    {{"tier":"Comfort","flight_price":0,"flight_source":"","flight_operator":"",'
-        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","total":0}},\n'
+        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","hotel_address":"","total":0}},\n'
         f'    {{"tier":"Premium","flight_price":0,"flight_source":"","flight_operator":"",'
-        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","total":0}}\n'
+        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","hotel_address":"","total":0}}\n'
         f'  ]\n'
         f'}}'
     )
 
-    raw = _gemini_search(prompt, max_tokens=800)
+    # Step 1: search with grounding (prose OK)
+    research = _gemini_raw_text(prompt, max_tokens=1200)
+    if not research:
+        return None
+
+    # Step 2: extract into strict JSON using responseMimeType
+    schema = (
+        '{"destination":"string","origin":"string","nights":0,'
+        '"per_day_extras":{"food":0,"local_transport":0,"activities":0},'
+        '"packages":['
+        '{"tier":"Budget","flight_price":0,"flight_source":"string","flight_operator":"string",'
+        '"hotel_per_night":0,"hotel_source":"string cheapest site","hotel_name":"specific hotel name","hotel_address":"string","total":0},'
+        '{"tier":"Comfort",...},{"tier":"Premium",...}]}'
+    )
+    raw = _gemini_to_json(research, schema, max_tokens=900)
     if not raw or not isinstance(raw.get("packages"), list):
+        print(f"[packages] could not extract structured data", flush=True)
         return None
 
     # Compute totals if model left them as 0
@@ -512,12 +586,15 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
             f"https://www.goibibo.com/flights/search/{origin_up}-to-{dest_up}-cheap-flights/" if "goibibo" in fs else
             f"https://www.ixigo.com/flight/{origin_slug}-to-{dest_slug}/flights-from-{origin_slug}-to-{dest_slug}"
         )
+        hotel_name = pkg.get("hotel_name", "")
+        hotel_query = (hotel_name + " " + dest_up).strip().replace(" ", "+")
         hotel_url = (
-            f"https://www.oyorooms.com/search?location={dest_up}" if "oyo" in hs else
-            f"https://www.makemytrip.com/hotels/{dest_slug}-hotels.html" if "makemytrip" in hs else
-            f"https://www.booking.com/search.html?ss={dest_up}" if "booking" in hs else
-            f"https://www.agoda.com/search?city={dest_up}" if "agoda" in hs else
-            f"https://www.makemytrip.com/hotels/{dest_slug}-hotels.html"
+            f"https://www.oyorooms.com/search?location={dest_up}&q={hotel_name.replace(' ', '+')}" if "oyo" in hs else
+            f"https://www.makemytrip.com/hotels/{dest_slug}-hotels.html?query={hotel_name.replace(' ', '+')}" if "makemytrip" in hs else
+            f"https://www.booking.com/search.html?ss={hotel_query}" if "booking" in hs else
+            f"https://www.goibibo.com/hotels/hotels-in-{dest_slug}/?q={hotel_name.replace(' ', '+')}" if "goibibo" in hs else
+            f"https://www.agoda.com/search?city={dest_up}&q={hotel_name.replace(' ', '+')}" if "agoda" in hs else
+            f"https://www.booking.com/search.html?ss={hotel_query}"
         )
         packages.append({
             "tier":             pkg.get("tier", ""),
@@ -526,8 +603,10 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
             "flight_source":    pkg.get("flight_source", ""),
             "flight_url":       flight_url,
             "hotel_per_night":  hpp,
-            "hotel_name":       pkg.get("hotel_name", ""),
+            "hotel_name":       hotel_name,
+            "hotel_address":    pkg.get("hotel_address", ""),
             "hotel_source":     pkg.get("hotel_source", ""),
+            "hotel_source_note": f"Lowest price found on {pkg.get('hotel_source', '')}",
             "hotel_url":        hotel_url,
             "nights":           nights_val,
             "daily_extras":     daily_extra,
