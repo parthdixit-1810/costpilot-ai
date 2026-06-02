@@ -195,6 +195,7 @@ const el = {
   form:         $("goal-form"),    goal:         $("goal"),
   budget:       $("budget"),       budgetOutput: $("budget-output"),
   duration:     $("duration"),     origin:       $("origin"),
+  travellers:   $("travellers"),
   alerts:       $("alerts"),       sustainability: $("sustainability"),
   negotiator:   $("negotiator"),
   submitBtn:    $("submit-button"),submitLabel:  $("submit-label"),
@@ -339,6 +340,9 @@ function setJourneyStage(idx) {
   document.querySelectorAll(".journey-step").forEach((s, i) => {
     s.classList.toggle("active", i === idx);
     s.classList.toggle("complete", i < idx);
+  });
+  document.querySelectorAll(".j-line").forEach((l, i) => {
+    l.classList.toggle("complete", i < idx);
   });
 }
 
@@ -602,7 +606,7 @@ function renderGraph(nodes = []) {
 ═══════════════════════════════════════ */
 // Budget range per goal type (min, max, step, ticks)
 const BUDGET_RANGE = {
-  travel:     { min: 5000,   max: 500000,  step: 5000,  ticks: ["₹5K","₹1L","₹2L","₹5L"],   durMax: 30 },
+  travel:     { min: 1000,   max: 500000,  step: 1000,  ticks: ["₹1K","₹1L","₹2L","₹5L"],   durMax: 30 },
   gadget:     { min: 5000,   max: 300000,  step: 5000,  ticks: ["₹5K","₹50K","₹1.5L","₹3L"], durMax: 14 },
   relocation: { min: 50000,  max: 2000000, step: 10000, ticks: ["₹50K","₹5L","₹10L","₹20L"], durMax: 90 },
   event:      { min: 10000,  max: 1000000, step: 10000, ticks: ["₹10K","₹2L","₹5L","₹10L"],  durMax: 60 },
@@ -628,6 +632,7 @@ function setType(type) {
   el.duration.value = Math.min(t.duration, r.durMax);
   updateBudget();
   el.intentChip.textContent = TYPE_LABELS[type];
+  document.querySelectorAll(".travel-only").forEach(el => el.style.display = type === "travel" ? "" : "none");
   renderGraph(GRAPH_NODES[type]);
   document.querySelectorAll(".persona-btn").forEach((b) => {
     const on = b.dataset.type === type;
@@ -702,11 +707,13 @@ function animateTrace() {
 function getPayload() {
   const priority = document.querySelector('input[name="priority"]:checked')?.value || "balanced";
   return {
-    goal:     el.goal.value.trim(),
-    type:     state.type,
-    budget:   Number(el.budget.value),
-    duration: Math.min(Math.max(Number(el.duration.value) || 1, 1), BUDGET_RANGE[state.type]?.durMax || 30),
-    origin:   el.origin.value,
+    goal:       el.goal.value.trim(),
+    type:       state.type,
+    budget:     Number(el.budget.value),
+    duration:   Math.min(Math.max(Number(el.duration.value) || 1, 1), BUDGET_RANGE[state.type]?.durMax || 30),
+    origin:     el.origin.value,
+    travellers: state.type === "travel" ? Math.max(1, Number(el.travellers?.value) || 1) : 1,
+    transport:  state.type === "travel" ? (document.querySelector('input[name="transport"]:checked')?.value || "recommend") : undefined,
     priority,
     options: {
       alerts:         el.alerts.checked,

@@ -233,8 +233,8 @@
                     Budget
                     <output class="budget-out" id="budget-output">₹25,000</output>
                   </label>
-                  <input id="budget" type="range" class="range-slider" min="10000" max="500000" step="5000" value="25000">
-                  <div class="range-ticks"><span>₹10K</span><span>₹1L</span><span>₹2L</span><span>₹5L</span></div>
+                  <input id="budget" type="range" class="range-slider" min="1000" max="500000" step="1000" value="25000">
+                  <div class="range-ticks"><span>₹1K</span><span>₹1L</span><span>₹2L</span><span>₹5L</span></div>
               <div id="life-budget-hint" style="display:none"></div>
                 </div>
                 <div class="field">
@@ -244,10 +244,45 @@
                 <div class="field">
                   <label class="field-label" for="origin">Starting city</label>
                   <select id="origin" class="field-input field-select">
-                    <option>Delhi</option><option>Mumbai</option><option>Bengaluru</option>
-                    <option>Lucknow</option><option>Hyderabad</option><option>Chennai</option>
-                    <option>Kolkata</option><option>Pune</option>
+                    <optgroup label="North">
+                      <option>Delhi</option><option>Lucknow</option><option>Jaipur</option>
+                      <option>Chandigarh</option><option>Amritsar</option><option>Agra</option>
+                      <option>Varanasi</option><option>Dehradun</option><option>Shimla</option>
+                      <option>Manali</option><option>Rishikesh</option><option>Haridwar</option>
+                      <option>Jodhpur</option><option>Udaipur</option><option>Jaisalmer</option>
+                    </optgroup>
+                    <optgroup label="West">
+                      <option>Mumbai</option><option>Pune</option><option>Ahmedabad</option>
+                      <option>Surat</option><option>Nagpur</option><option>Goa</option>
+                      <option>Aurangabad</option><option>Nashik</option>
+                    </optgroup>
+                    <optgroup label="South">
+                      <option>Bengaluru</option><option>Chennai</option><option>Hyderabad</option>
+                      <option>Kochi</option><option>Coimbatore</option><option>Mysuru</option>
+                      <option>Thiruvananthapuram</option><option>Vizag</option>
+                      <option>Pondicherry</option><option>Madurai</option><option>Ooty</option>
+                      <option>Hampi</option><option>Mangaluru</option>
+                    </optgroup>
+                    <optgroup label="East &amp; North-East">
+                      <option>Kolkata</option><option>Bhubaneswar</option><option>Patna</option>
+                      <option>Guwahati</option><option>Ranchi</option><option>Darjeeling</option>
+                      <option>Gangtok</option><option>Shillong</option><option>Puri</option>
+                    </optgroup>
                   </select>
+                </div>
+                <div class="field travel-only">
+                  <label class="field-label" for="travellers">Travellers</label>
+                  <input id="travellers" type="number" class="field-input" min="1" max="20" value="1">
+                </div>
+                <div class="field field-full travel-only">
+                  <label class="field-label">Transport mode</label>
+                  <div class="priority-tabs" role="radiogroup">
+                    <label class="priority-tab"><input type="radio" name="transport" value="recommend" checked><span>Best option</span></label>
+                    <label class="priority-tab"><input type="radio" name="transport" value="flight"><span>✈ Flight</span></label>
+                    <label class="priority-tab"><input type="radio" name="transport" value="train"><span>🚂 Train</span></label>
+                    <label class="priority-tab"><input type="radio" name="transport" value="bus"><span>🚌 Bus</span></label>
+                    <label class="priority-tab"><input type="radio" name="transport" value="cab"><span>🚗 Cab</span></label>
+                  </div>
                 </div>
                 <div class="field field-full">
                   <label class="field-label">Optimise for</label>

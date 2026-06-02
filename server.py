@@ -357,11 +357,13 @@ SYSTEM_PROMPT = (
     "  }\n"
     "}\n"
     "Be specific to the Indian market, destination, and budget. "
+    "If transport_mode is 'recommend best option', compare flight/train/bus/cab costs and clearly state which is cheapest/fastest/best-value for the route. "
+    "If travellers > 1, scale transit costs accordingly and note per-person vs total. "
     "Keep each string under 120 characters. No markdown, no extra keys."
 )
 
 def _user_msg(p: dict[str, Any]) -> str:
-    return json.dumps({
+    msg: dict[str, Any] = {
         "goal":     p["goal"],
         "type":     p["type"],
         "budget":   f"₹{p['budget']:,}",
@@ -369,7 +371,14 @@ def _user_msg(p: dict[str, Any]) -> str:
         "origin":   p["origin"],
         "priority": p["priority"],
         "options":  p["options"],
-    }, ensure_ascii=False)
+    }
+    if p.get("travellers", 1) > 1:
+        msg["travellers"] = p["travellers"]
+    if p.get("transport") and p["transport"] != "recommend":
+        msg["transport_mode"] = p["transport"]
+    elif p.get("transport") == "recommend":
+        msg["transport_mode"] = "recommend best option among flight/train/bus/cab and explain why"
+    return json.dumps(msg, ensure_ascii=False)
 
 def _parse_llm_text(text: str) -> dict[str, Any]:
     text = text.strip()
@@ -427,20 +436,30 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
     Each package has flight, hotel, and estimated extras so the user
     sees an actual bookable combination with sources.
     """
-    origin   = p.get("origin", "Delhi")
-    duration = max(1, int(p.get("duration", 3)))
-    goal     = p.get("goal", "")
-    dest     = _extract_destination(goal) or "Goa"
-    nights   = max(1, duration - 1)
+    origin     = p.get("origin", "Delhi")
+    duration   = max(1, int(p.get("duration", 3)))
+    goal       = p.get("goal", "")
+    dest       = _extract_destination(goal) or "Goa"
+    nights     = max(1, duration - 1)
+    travellers = max(1, int(p.get("travellers", 1)))
+    transport  = p.get("transport", "recommend")
+
+    pax_note = f"{travellers} traveller{'s' if travellers > 1 else ''}"
+    if transport == "recommend":
+        transport_note = "Compare flight vs train vs bus vs cab and pick the best value option"
+    else:
+        transport_note = f"Use {transport} as the mode of transport"
 
     prompt = (
         f"Search Google right now for the LOWEST current prices (INR) for a {duration}-day trip "
-        f"from {origin} to {dest} ({nights} nights).\n\n"
+        f"from {origin} to {dest} ({nights} nights) for {pax_note}.\n\n"
+        f"{transport_note}.\n\n"
         f"Find:\n"
-        f"A) Budget option: cheapest one-way economy flight/train {origin}→{dest}, "
+        f"A) Budget option: cheapest transport {origin}→{dest} (consider all modes: flight/train/bus/cab), "
         f"cheapest decent hotel/hostel/OYO in {dest} per night\n"
-        f"B) Comfort option: mid-range flight, 3-star hotel per night\n"
-        f"C) Premium option: premium flight or upgrade, 4-5 star hotel per night\n\n"
+        f"B) Comfort option: mid-range transport option, 3-star hotel per night\n"
+        f"C) Premium option: premium transport or upgrade, 4-5 star hotel per night\n\n"
+        f"Scale all prices by {travellers} traveller(s) where applicable (transport, food).\n"
         f"Also estimate per day: food (INR), local transport (INR), activities (INR) for {dest}.\n\n"
         f"Return ONLY this exact JSON (integers only, no ranges, use real searched values):\n"
         f'{{\n'
