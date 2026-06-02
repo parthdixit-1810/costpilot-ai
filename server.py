@@ -299,8 +299,7 @@ def full_result(p: dict[str, Any], llm: dict[str, Any] | None = None, live_price
         "id":           str(uuid.uuid4()),
         "title":        title,
         "engine_label": (
-            "Claude AI + optimizer" if llm and llm.get("mode") == "claude"
-            else "Gemini AI + optimizer" if llm and llm.get("mode") == "gemini"
+            "Gemini AI + optimizer" if llm and llm.get("mode") in ("claude", "gemini")
             else "Local optimizer"
         ),
         "constraints": {
@@ -749,7 +748,7 @@ def main():
     has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
     has_gemini = bool(os.getenv("GEMINI_API_KEY"))
     db_size    = DB_PATH.stat().st_size if DB_PATH.exists() else 0
-    if has_claude:   ai_label = f"Claude {MODEL}"
+    if has_claude:   ai_label = f"Gemini AI (via Anthropic fallback)"
     elif has_gemini: ai_label = f"Gemini {GEMINI_MODEL}"
     else:            ai_label = "Local optimizer  (add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env)"
     print(f"\n  CostPilot AI  →  http://localhost:{port}")

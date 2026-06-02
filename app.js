@@ -483,7 +483,7 @@ function renderAiNotes(llmNotes) {
   if (!assumptions.length && !risks.length) { el.aiNotes.style.display = "none"; return; }
 
   const header = el.aiNotes.querySelector(".ai-notes-header strong");
-  if (header) header.textContent = llmNotes.mode === "gemini" ? "Gemini AI notes" : "Claude AI notes";
+  if (header) header.textContent = "AI notes";
 
   el.aiNotes.style.display = "block";
   if (assumptions.length) {
@@ -1389,7 +1389,7 @@ async function loadHealth() {
   try {
     const h = await api("/api/health");
     const live     = Boolean(h.llm_configured);
-    const provider = h.provider === "gemini" ? "Gemini AI" : "Claude AI";
+    const provider = h.provider === "gemini" ? "Gemini AI" : "AI";
     el.statusDot.classList.toggle("live", live);
     el.statusLabel.textContent = live ? provider : "Local optimizer";
     el.llmMode.textContent     = live ? provider : "Mock planner";
