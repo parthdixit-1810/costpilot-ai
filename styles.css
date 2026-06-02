@@ -950,6 +950,20 @@ html[data-theme="dark"] .modal-overlay{background:rgba(0,0,0,.7)}
   .life-cat-amount{display:none}
 }
 
+/* ══ SPECIFIC HOTEL/TRANSPORT CARD IN BUCKET ROW ══ */
+.bucket-specific{
+  display:flex;align-items:flex-start;gap:10px;
+  background:var(--green-lt);border:1px solid color-mix(in srgb,var(--green) 18%,transparent);
+  border-radius:var(--r-xs);padding:8px 10px;margin-top:4px;
+}
+.bs-icon{font-size:1.1rem;line-height:1.4;flex-shrink:0}
+.bs-body{display:grid;gap:2px;min-width:0}
+.bs-name{font-size:.8rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bs-detail{font-size:.7rem;color:var(--muted)}
+.bs-price{font-size:.75rem;font-weight:600;color:var(--ink)}
+.bs-link{color:var(--green-dk);text-decoration:none;font-weight:700}
+.bs-link:hover{text-decoration:underline}
+
 /* ══ BOOKING LINKS (Feature 1) ══ */
 .book-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .book-link{

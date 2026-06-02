@@ -1208,9 +1208,47 @@ function selectPlan(planId) {
               const planType = state.lastResult?.constraints?.type || state.type;
               const goal = state.lastResult?.constraints?.goal || "";
               const links = getBookingLinks(planType, b.label, goal, b.amount);
-              const linksHtml = links.length
+              const labelLower = b.label.toLowerCase();
+
+              // Inject specific hotel/transport from live packages if available
+              const pkgs = state.lastResult?.travel_packages || [];
+              // Match this plan tier to a package (cheapest->Budget, fastest->Comfort, value->Comfort, premium->Premium)
+              const tierMap = {cheapest:"Budget", fastest:"Comfort", value:"Comfort", premium:"Premium"};
+              const matchedPkg = pkgs.find(p => p.tier === (tierMap[plan.id] || "Budget"));
+              let specificCard = "";
+              if (matchedPkg && (labelLower.includes("transit") || labelLower.includes("stay"))) {
+                const isTransit = labelLower.includes("transit");
+                if (isTransit) {
+                  const modeIcon = {flight:"✈️",train:"🚂",bus:"🚌",cab:"🚗"}[matchedPkg.transport_mode] || "✈️";
+                  specificCard = `<div class="bucket-specific">
+                    <span class="bs-icon">${modeIcon}</span>
+                    <div class="bs-body">
+                      <div class="bs-name">${matchedPkg.transport_name || matchedPkg.flight_operator || "—"}</div>
+                      ${matchedPkg.transport_detail ? `<div class="bs-detail">${matchedPkg.transport_detail}</div>` : ""}
+                      <div class="bs-price">${money(matchedPkg.flight_price)} &nbsp;
+                        <a class="bs-link" href="${matchedPkg.flight_url}" target="_blank" rel="noopener noreferrer">Lowest on ${matchedPkg.flight_source || "Ixigo"} ↗</a>
+                      </div>
+                    </div>
+                  </div>`;
+                } else {
+                  specificCard = `<div class="bucket-specific">
+                    <span class="bs-icon">🏨</span>
+                    <div class="bs-body">
+                      <div class="bs-name">${matchedPkg.hotel_name || "—"}</div>
+                      ${matchedPkg.hotel_address ? `<div class="bs-detail">${matchedPkg.hotel_address}</div>` : ""}
+                      <div class="bs-price">${money(matchedPkg.hotel_per_night)}/night &nbsp;
+                        <a class="bs-link" href="${matchedPkg.hotel_url}" target="_blank" rel="noopener noreferrer">Lowest on ${matchedPkg.hotel_source || "Booking.com"} ↗</a>
+                      </div>
+                    </div>
+                  </div>`;
+                }
+              }
+
+              const linksHtml = links.length && !specificCard
                 ? `<div class="book-links">${links.map(l=>`<a class="book-link" href="${l.url}" target="_blank" rel="noopener noreferrer">${l.label}</a>`).join("")}</div>`
-                : "";
+                : links.length
+                  ? `<div class="book-links" style="margin-top:4px">${links.map(l=>`<a class="book-link" href="${l.url}" target="_blank" rel="noopener noreferrer">${l.label}</a>`).join("")}</div>`
+                  : "";
               const hasLive = b.live_typical > 0;
               const liveBadge = hasLive
                 ? `<span class="live-price-badge" title="Live web price">Live</span>`
@@ -1227,6 +1265,7 @@ function selectPlan(planId) {
                 <div class="bucket-row-top"><span>${b.label} ${liveBadge}</span><strong>${money(b.amount)}</strong></div>
                 <div class="bucket-bar-track"><div class="bucket-bar-fill" style="width:${pct}%"></div></div>
                 ${liveRow}
+                ${specificCard}
                 ${linksHtml}
               </div>`;
             }).join("")}
