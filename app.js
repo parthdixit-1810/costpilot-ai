@@ -633,6 +633,8 @@ function setType(type) {
   updateBudget();
   el.intentChip.textContent = TYPE_LABELS[type];
   document.querySelectorAll(".travel-only").forEach(el => el.style.display = type === "travel" ? "" : "none");
+  const originLabels = { travel: "Starting city", gadget: "Your city", relocation: "Current city", event: "Event city" };
+  document.getElementById("origin-label").textContent = originLabels[type] || "City";
   renderGraph(GRAPH_NODES[type]);
   document.querySelectorAll(".persona-btn").forEach((b) => {
     const on = b.dataset.type === type;
@@ -2185,12 +2187,13 @@ function renderProgressTracker(plan, title, budget) {
   const goalLabel  = $("progress-goal-label");
   const desc  = $("progress-desc");
 
-  if (desc) desc.textContent = `How much have you saved toward "${title || "your goal"}"?`;
+  if (desc) desc.textContent = `Set how much money you've put aside so far for "${title || "your goal"}". Drag to update your savings progress.`;
 
   const progData = loadProgress();
   const saved = progData[title] || 0;
 
-  if (slider) { slider.max = max; slider.value = saved; }
+  const step = max <= 10000 ? 100 : max <= 100000 ? 500 : 1000;
+  if (slider) { slider.max = max; slider.step = step; slider.value = saved; }
   if (goalLabel) goalLabel.textContent = `of ${money(max)}`;
 
   function updateBar(val) {

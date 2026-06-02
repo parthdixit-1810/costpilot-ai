@@ -242,7 +242,7 @@
                   <input id="duration" type="number" class="field-input" min="1" max="30" value="4">
                 </div>
                 <div class="field">
-                  <label class="field-label" for="origin">Starting city</label>
+                  <label class="field-label" for="origin" id="origin-label">Starting city</label>
                   <select id="origin" class="field-input field-select">
                     <optgroup label="North">
                       <option>Delhi</option><option>Lucknow</option><option>Jaipur</option>
@@ -472,7 +472,7 @@
                 <span id="progress-saved-label">₹0 saved</span>
                 <span id="progress-goal-label">of ₹0</span>
               </div>
-              <input type="range" id="progress-slider" class="range-slider" min="0" max="100000" step="1000" value="0" style="margin-top:8px">
+              <input type="range" id="progress-slider" class="range-slider" min="0" max="100000" step="100" value="0" style="margin-top:8px">
               <button class="btn-outline btn-sm" type="button" id="progress-save-btn" style="margin-top:8px">Update savings</button>
             </div>
           </article>
