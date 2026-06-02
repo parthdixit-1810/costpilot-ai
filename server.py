@@ -424,18 +424,37 @@ def _gemini_raw_text(prompt: str, max_tokens: int = 1000) -> str | None:
         print(f"[gemini_raw] error: {e}", flush=True)
         return None
 
+PACKAGES_JSON_TEMPLATE = """{
+  "destination": "string",
+  "origin": "string",
+  "nights": 0,
+  "per_day_extras": {"food": 0, "local_transport": 0, "activities": 0},
+  "packages": [
+    {"tier":"Budget","transport_mode":"bus|train|flight|cab","transport_name":"specific service name","transport_detail":"class or time","flight_price":0,"flight_source":"cheapest site","flight_operator":"operator","hotel_per_night":0,"hotel_source":"cheapest site","hotel_name":"specific real property","hotel_address":"area, city","total":0},
+    {"tier":"Comfort","transport_mode":"...","transport_name":"...","transport_detail":"...","flight_price":0,"flight_source":"...","flight_operator":"...","hotel_per_night":0,"hotel_source":"...","hotel_name":"...","hotel_address":"...","total":0},
+    {"tier":"Premium","transport_mode":"...","transport_name":"...","transport_detail":"...","flight_price":0,"flight_source":"...","flight_operator":"...","hotel_per_night":0,"hotel_source":"...","hotel_name":"...","hotel_address":"...","total":0}
+  ]
+}"""
+
 def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800) -> dict | None:
-    """Call Gemini without tools to convert raw research text into strict JSON."""
+    """Call Gemini without tools to produce strict JSON. If json_schema is empty, raw_text is the full prompt."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
     url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
-    prompt = (
-        f"Extract the key facts from the research below and return ONLY valid JSON matching this schema exactly. "
-        f"No prose, no markdown, no explanation — just the JSON object.\n\n"
-        f"Schema:\n{json_schema}\n\n"
-        f"Research:\n{raw_text}"
-    )
+    if json_schema:
+        prompt = (
+            f"Extract the key facts from the research below and return ONLY valid JSON matching this schema exactly. "
+            f"No prose, no markdown, no explanation — just the JSON object.\n\n"
+            f"Schema:\n{json_schema}\n\n"
+            f"Research:\n{raw_text}"
+        )
+    else:
+        prompt = (
+            f"{raw_text}\n\n"
+            f"Return ONLY a valid JSON object matching this template exactly (integers only, no ranges, "
+            f"all string fields must be filled with real specific values):\n{PACKAGES_JSON_TEMPLATE}"
+        )
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -503,54 +522,22 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
         transport_note = f"Use {transport} as the mode of transport"
 
     prompt = (
-        f"Search Google right now for a {duration}-day trip from {origin} to {dest} "
-        f"({nights} nights) for {pax_note}. Find SPECIFIC named hotels/hostels with REAL prices.\n\n"
+        f"You are a travel research assistant with knowledge of Indian transport and hotels. "
+        f"Give realistic current prices for a {duration}-day trip from {origin} to {dest} ({nights} nights) for {pax_note}.\n\n"
         f"{transport_note}.\n\n"
-        f"For each of 3 tiers (Budget/Comfort/Premium):\n"
-        f"1. TRANSPORT: Find a specific operator/train/flight number and its price from {origin} to {dest}. "
-        f"Check MakeMyTrip, Ixigo, GoIbibo, Cleartrip, IRCTC and use the cheapest source.\n"
-        f"2. HOTEL: Find a SPECIFIC named hotel or hostel in {dest}. "
-        f"Check its price on MakeMyTrip, Booking.com, Goibibo, OYO, Agoda — "
-        f"use the site with the LOWEST price per night and name that site.\n\n"
-        f"Tiers:\n"
-        f"- Budget: cheapest hostel/OYO/guesthouse, cheapest transport mode (bus/train/flight)\n"
-        f"- Comfort: named 3-star hotel, mid-range transport\n"
-        f"- Premium: named 4-5 star hotel, best transport option\n\n"
-        f"Scale transport prices by {travellers} traveller(s). "
-        f"Also estimate per day: food (INR), local transport (INR), activities (INR) for {dest}.\n\n"
-        f"Return ONLY this exact JSON (integers only, no ranges, use REAL searched values, "
-        f"hotel_name must be a real specific property name, hotel_source must be the cheapest site):\n"
-        f'{{\n'
-        f'  "destination": "{dest}",\n'
-        f'  "origin": "{origin}",\n'
-        f'  "nights": {nights},\n'
-        f'  "per_day_extras": {{"food": 0, "local_transport": 0, "activities": 0}},\n'
-        f'  "packages": [\n'
-        f'    {{"tier":"Budget","flight_price":0,"flight_source":"","flight_operator":"",'
-        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","hotel_address":"","total":0}},\n'
-        f'    {{"tier":"Comfort","flight_price":0,"flight_source":"","flight_operator":"",'
-        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","hotel_address":"","total":0}},\n'
-        f'    {{"tier":"Premium","flight_price":0,"flight_source":"","flight_operator":"",'
-        f'"hotel_per_night":0,"hotel_source":"","hotel_name":"","hotel_address":"","total":0}}\n'
-        f'  ]\n'
-        f'}}'
+        f"For Budget tier: use bus or sleeper train + hostel/OYO/guesthouse. "
+        f"For Comfort tier: use AC train or flight + 3-star hotel. "
+        f"For Premium tier: use best flight + 4-5 star hotel.\n\n"
+        f"For transport: name the SPECIFIC service (e.g. 'IndiGo 6E-234', 'Rajdhani Express 12951', 'KSRTC Sleeper', 'Ola Outstation'). "
+        f"Name the cheapest booking site (MakeMyTrip/Ixigo/IRCTC/RedBus/GoIbibo). "
+        f"Scale transport price by {travellers} traveller(s).\n\n"
+        f"For hotel: name a SPECIFIC real property (e.g. 'The Funky Monkey Hostel', 'Lemon Tree Hotel', 'Taj Exotica'). "
+        f"Name the site with the lowest per-night price (MakeMyTrip/Booking.com/OYO/Agoda/Goibibo). "
+        f"Include the area/neighbourhood (e.g. 'Anjuna, Goa').\n\n"
+        f"Also estimate typical per-day costs in {dest}: food, local transport, activities (INR integers)."
     )
 
-    # Step 1: search with grounding (prose OK)
-    research = _gemini_raw_text(prompt, max_tokens=1200)
-    if not research:
-        return None
-
-    # Step 2: extract into strict JSON using responseMimeType
-    schema = (
-        '{"destination":"string","origin":"string","nights":0,'
-        '"per_day_extras":{"food":0,"local_transport":0,"activities":0},'
-        '"packages":['
-        '{"tier":"Budget","flight_price":0,"flight_source":"string","flight_operator":"string",'
-        '"hotel_per_night":0,"hotel_source":"string cheapest site","hotel_name":"specific hotel name","hotel_address":"string","total":0},'
-        '{"tier":"Comfort",...},{"tier":"Premium",...}]}'
-    )
-    raw = _gemini_to_json(research, schema, max_tokens=900)
+    raw = _gemini_to_json(prompt, "", max_tokens=1000)
     if not raw or not isinstance(raw.get("packages"), list):
         print(f"[packages] could not extract structured data", flush=True)
         return None
@@ -578,14 +565,29 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
         origin_slug = origin.lower().replace(" ", "-")
         dest_up     = dest.replace("-", " ").title()
         origin_up   = origin.replace("-", " ").title()
+        transport_mode = (pkg.get("transport_mode") or "flight").lower()
         fs = (pkg.get("flight_source") or "").lower()
         hs = (pkg.get("hotel_source") or "").lower()
-        flight_url = (
-            f"https://www.makemytrip.com/flights/{origin_up}-to-{dest_up}.html" if "makemytrip" in fs else
-            f"https://www.cleartrip.com/flights/results?from={origin_up}&to={dest_up}&adults=1" if "cleartrip" in fs else
-            f"https://www.goibibo.com/flights/search/{origin_up}-to-{dest_up}-cheap-flights/" if "goibibo" in fs else
-            f"https://www.ixigo.com/flight/{origin_slug}-to-{dest_slug}/flights-from-{origin_slug}-to-{dest_slug}"
-        )
+
+        # Build transport booking URL based on mode + cheapest source
+        if "train" in transport_mode or "irctc" in fs:
+            transport_url = "https://www.irctc.co.in/nget/train-search"
+        elif "bus" in transport_mode:
+            transport_url = (
+                f"https://www.redbus.in/bus-tickets/{origin_slug}-to-{dest_slug}" if "redbus" in fs else
+                f"https://www.abhibus.com/bus_search/{origin_up}-to-{dest_up}/" if "abhibus" in fs else
+                f"https://www.ixigo.com/bus/{origin_slug}-to-{dest_slug}/bus-tickets"
+            )
+        elif "cab" in transport_mode:
+            transport_url = "https://www.olacabs.com/outstation"
+        else:
+            transport_url = (
+                f"https://www.makemytrip.com/flights/{origin_up}-to-{dest_up}.html" if "makemytrip" in fs else
+                f"https://www.cleartrip.com/flights/results?from={origin_up}&to={dest_up}&adults=1" if "cleartrip" in fs else
+                f"https://www.goibibo.com/flights/search/{origin_up}-to-{dest_up}-cheap-flights/" if "goibibo" in fs else
+                f"https://www.ixigo.com/flight/{origin_slug}-to-{dest_slug}/flights-from-{origin_slug}-to-{dest_slug}"
+            )
+
         hotel_name = pkg.get("hotel_name", "")
         hotel_query = (hotel_name + " " + dest_up).strip().replace(" ", "+")
         hotel_url = (
@@ -597,20 +599,22 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
             f"https://www.booking.com/search.html?ss={hotel_query}"
         )
         packages.append({
-            "tier":             pkg.get("tier", ""),
-            "flight_price":     fp,
-            "flight_operator":  pkg.get("flight_operator", ""),
-            "flight_source":    pkg.get("flight_source", ""),
-            "flight_url":       flight_url,
-            "hotel_per_night":  hpp,
-            "hotel_name":       hotel_name,
-            "hotel_address":    pkg.get("hotel_address", ""),
-            "hotel_source":     pkg.get("hotel_source", ""),
-            "hotel_source_note": f"Lowest price found on {pkg.get('hotel_source', '')}",
-            "hotel_url":        hotel_url,
-            "nights":           nights_val,
-            "daily_extras":     daily_extra,
-            "total":            int(total),
+            "tier":              pkg.get("tier", ""),
+            "transport_mode":    transport_mode,
+            "transport_name":    pkg.get("transport_name", pkg.get("flight_operator", "")),
+            "transport_detail":  pkg.get("transport_detail", ""),
+            "flight_price":      fp,
+            "flight_operator":   pkg.get("flight_operator", ""),
+            "flight_source":     pkg.get("flight_source", ""),
+            "flight_url":        transport_url,
+            "hotel_per_night":   hpp,
+            "hotel_name":        hotel_name,
+            "hotel_address":     pkg.get("hotel_address", ""),
+            "hotel_source":      pkg.get("hotel_source", ""),
+            "hotel_url":         hotel_url,
+            "nights":            nights_val,
+            "daily_extras":      daily_extra,
+            "total":             int(total),
         })
 
     print(f"[packages] fetched {len(packages)} travel packages for {origin}→{dest}", flush=True)

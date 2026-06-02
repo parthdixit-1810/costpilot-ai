@@ -1089,10 +1089,13 @@ function renderTravelPackages() {
           <div class="pkg-total">${money(pkg.total)}</div>
           ${deltaLabel}
           <div class="pkg-row">
-            <span class="pkg-icon">✈️</span>
+            <span class="pkg-icon">${{flight:"✈️",train:"🚂",bus:"🚌",cab:"🚗"}[pkg.transport_mode] || "✈️"}</span>
             <div>
-              <div class="pkg-label">${pkg.flight_operator || "Flight"} · ${money(pkg.flight_price)}</div>
-              <a class="pkg-book-link" href="${pkg.flight_url}" target="_blank" rel="noopener noreferrer">Book on ${pkg.flight_source || "MakeMyTrip"}</a>
+              <div class="pkg-label">${pkg.transport_name || pkg.flight_operator || "Transport"} · ${money(pkg.flight_price)}</div>
+              ${pkg.transport_detail ? `<div class="pkg-sublabel">${pkg.transport_detail}</div>` : ""}
+              <a class="pkg-book-link" href="${pkg.flight_url}" target="_blank" rel="noopener noreferrer">
+                Lowest on ${pkg.flight_source || "Ixigo"} ↗
+              </a>
             </div>
           </div>
           <div class="pkg-row">
