@@ -18,6 +18,7 @@ const state = {
   journeyStage: 0,
   comparePlanIds: [],   // up to 2 plans selected for side-by-side
   compareMode: false,
+  compareStep: 0,       // 0=pick plan, 1=plan detail, 2=itinerary & places
 };
 
 /* ── BOOKING LINKS — context-aware deep links ── */
@@ -179,6 +180,32 @@ const TYPE_LABELS = {
   travel: "Travel planner", gadget: "Gadget buyer",
   relocation: "Relocation planner", event: "Event planner",
 };
+const EXAMPLE_CHIPS = {
+  travel:     [
+    { label: "Goa trip",        goal: "Goa trip for 4 days under ₹25,000 from Mumbai" },
+    { label: "Manali winter",   goal: "Plan a Manali trip for 5 days under ₹30,000 from Delhi in December" },
+    { label: "Kerala backwaters", goal: "Kerala backwaters trip for 6 days under ₹40,000 from Bengaluru" },
+    { label: "Rajasthan royal", goal: "Rajasthan trip Jaipur-Jodhpur 7 days under ₹35,000 from Delhi" },
+  ],
+  gadget:     [
+    { label: "Coding laptop",   goal: "Best coding laptop under ₹70,000 with strong battery and upgradeable RAM" },
+    { label: "Gaming PC",       goal: "Build a gaming PC under ₹1,00,000 with RTX 4060 and 144Hz monitor" },
+    { label: "DSLR camera",     goal: "Buy a DSLR camera under ₹50,000 for travel photography" },
+    { label: "Noise-cancelling headphones", goal: "Best noise-cancelling headphones under ₹15,000" },
+  ],
+  relocation: [
+    { label: "Delhi → Bengaluru", goal: "Relocate from Delhi to Bengaluru, 2BHK flat, WFH setup" },
+    { label: "Mumbai → Pune",     goal: "Move from Mumbai to Pune, 1BHK, budget ₹1,50,000" },
+    { label: "Chennai → Hyderabad", goal: "Relocate from Chennai to Hyderabad for new job, family of 3" },
+    { label: "Kolkata → Delhi",   goal: "Move from Kolkata to Delhi, minimalist setup, under ₹80,000" },
+  ],
+  event:      [
+    { label: "Birthday party",  goal: "Plan a birthday party for 30 people under ₹50,000 in Delhi" },
+    { label: "Wedding 300 pax", goal: "Plan a wedding for 300 guests within ₹5,00,000 with good food and decor" },
+    { label: "Office event",    goal: "Organise a corporate team outing for 50 people under ₹1,00,000" },
+    { label: "Engagement",      goal: "Plan an engagement ceremony for 80 guests under ₹2,00,000" },
+  ],
+};
 const GRAPH_NODES = {
   travel:     ["Transit", "Stay", "Food", "Activities", "Local transport"],
   gadget:     ["Device", "Warranty", "Accessories", "Discounts", "Resale"],
@@ -258,6 +285,113 @@ const el = {
   lifeSummary:  $("life-summary"),
   lifeCategories: $("life-categories"),
 };
+
+/* ═══════════════════════════════════════
+   COMPARE SUB-PANEL NAVIGATION
+═══════════════════════════════════════ */
+const CMP_PANEL_LABELS = ["Choose plan", "Cost breakdown", "Itinerary & places"];
+
+function goCompareStep(step) {
+  const total = 3;
+  step = Math.max(0, Math.min(total - 1, step));
+  state.compareStep = step;
+
+  for (let i = 0; i < total; i++) {
+    const panel = $(`cmp-panel-${i}`);
+    if (panel) panel.hidden = (i !== step);
+  }
+
+  // Breadcrumb
+  document.querySelectorAll(".cmp-crumb").forEach((el, i) => {
+    el.classList.toggle("active", i === step);
+    el.classList.toggle("done", i < step);
+  });
+
+  // Badge
+  const badge = $("compare-step-badge");
+  if (badge) badge.textContent = `Step 3 · ${CMP_PANEL_LABELS[step]}`;
+
+  // Scroll to top of view
+  $("view-compare")?.scrollTo?.(0, 0);
+  window.scrollTo(0, 0);
+}
+
+// Wire sub-panel nav buttons (called after DOM ready)
+function wireCmpNav() {
+  $("cmp-next-0")?.addEventListener("click", () => {
+    if (!state.selectedPlanId) { toast("Pick a plan first", "default"); return; }
+    selectPlan(state.selectedPlanId);
+    goCompareStep(1);
+  });
+  $("cmp-back-1")?.addEventListener("click", () => goCompareStep(0));
+  $("cmp-next-1")?.addEventListener("click", () => {
+    updateItineraryPanel();
+    goCompareStep(2);
+  });
+  $("cmp-back-2")?.addEventListener("click", () => goCompareStep(1));
+  $("cmp-choose-final")?.addEventListener("click", () => {
+    const plan = state.lastResult?.plans?.find(p => p.id === state.selectedPlanId);
+    if (plan) choosePlan(plan);
+  });
+  // Breadcrumb clicks
+  document.querySelectorAll(".cmp-crumb").forEach(crumb => {
+    crumb.addEventListener("click", () => {
+      const step = Number(crumb.dataset.cmpStep);
+      if (step === 1 && !state.selectedPlanId) return;
+      if (step === 1) selectPlan(state.selectedPlanId);
+      if (step === 2) updateItineraryPanel();
+      goCompareStep(step);
+    });
+  });
+}
+
+function updateItineraryPanel() {
+  const container = $("cmp-itinerary-places");
+  if (!container) return;
+  const placesHtml = renderPlacesToVisit();
+  const itinHtml   = renderItinerary();
+  if (placesHtml || itinHtml) {
+    container.innerHTML = (placesHtml || "") + (itinHtml || "");
+  } else {
+    const isTravel = state.lastResult?.constraints?.type === "travel";
+    const engine   = state.lastResult?.engine_label || "";
+    const isLocal  = engine.toLowerCase().includes("local");
+    container.innerHTML = isTravel && isLocal
+      ? `<div class="detail-empty" style="padding:32px 0;text-align:center;color:var(--muted)">
+           <p style="margin-bottom:12px">Gemini AI is busy right now — itinerary will appear when quota resets.</p>
+           <button class="btn-ghost" onclick="retryItinerary()" style="font-size:13px">↻ Retry now</button>
+         </div>`
+      : `<div class="detail-empty" style="padding:40px 0;text-align:center;color:var(--muted)">
+           <p>Generate a plan with Gemini AI to see the day-by-day itinerary and top places to visit.</p>
+         </div>`;
+  }
+}
+
+async function retryItinerary() {
+  if (!state.lastPayload) return;
+  const btn = document.querySelector('#cmp-itinerary-places button');
+  if (btn) { btn.textContent = '↻ Retrying…'; btn.disabled = true; }
+  try {
+    // retry_only=true tells server to skip DB write and only return itinerary/places
+    const res = await fetch("/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...state.lastPayload, retry_only: true }),
+    });
+    const data = await res.json();
+    if (data.itinerary?.length || data.places_to_visit?.length) {
+      state.lastResult = { ...state.lastResult, itinerary: data.itinerary, places_to_visit: data.places_to_visit };
+      updateItineraryPanel();
+      toast("Itinerary loaded!", "success");
+    } else {
+      if (btn) { btn.textContent = '↻ Retry now'; btn.disabled = false; }
+      toast("Gemini still busy — try again in a moment", "default");
+    }
+  } catch(e) {
+    if (btn) { btn.textContent = '↻ Retry now'; btn.disabled = false; }
+    toast("Retry failed", "error");
+  }
+}
 
 /* ═══════════════════════════════════════
    TOAST SYSTEM
@@ -477,24 +611,16 @@ function renderSavingsDiscovery(plans, budget, type) {
    CLAUDE AI NOTES
 ═══════════════════════════════════════ */
 function renderAiNotes(llmNotes) {
-  if (!llmNotes || !["claude","gemini"].includes(llmNotes.mode)) { el.aiNotes.style.display = "none"; return; }
+  // AI notes (assumptions/risks) hidden — too verbose, adds clutter
+  el.aiNotes.style.display = "none";
+  if (!llmNotes || !["claude","gemini"].includes(llmNotes.mode)) { return; }
   const assumptions = llmNotes.assumptions || [];
   const risks       = llmNotes.risks || [];
-  if (!assumptions.length && !risks.length) { el.aiNotes.style.display = "none"; return; }
+  if (!assumptions.length && !risks.length) { return; }
 
   const header = el.aiNotes.querySelector(".ai-notes-header strong");
   if (header) header.textContent = "AI notes";
 
-  el.aiNotes.style.display = "block";
-  if (assumptions.length) {
-    el.aiAssumptionsWrap.style.display = "block";
-    el.aiAssumptions.innerHTML = assumptions.map((a) => `<li>${a}</li>`).join("");
-  } else { el.aiAssumptionsWrap.style.display = "none"; }
-
-  if (risks.length) {
-    el.aiRisksWrap.style.display = "block";
-    el.aiRisks.innerHTML = risks.map((r) => `<li>${r}</li>`).join("");
-  } else { el.aiRisksWrap.style.display = "none"; }
 }
 
 /* ═══════════════════════════════════════
@@ -607,9 +733,9 @@ function renderGraph(nodes = []) {
 // Budget range per goal type (min, max, step, ticks)
 const BUDGET_RANGE = {
   travel:     { min: 1000,   max: 500000,  step: 1000,  ticks: ["₹1K","₹1L","₹2L","₹5L"],   durMax: 30 },
-  gadget:     { min: 5000,   max: 300000,  step: 5000,  ticks: ["₹5K","₹50K","₹1.5L","₹3L"], durMax: 14 },
+  gadget:     { min: 5000,   max: 300000,  step: 5000,  ticks: ["₹5K","₹50K","₹1.5L","₹3L"], durMax: 1  }, // no duration concept
   relocation: { min: 50000,  max: 2000000, step: 10000, ticks: ["₹50K","₹5L","₹10L","₹20L"], durMax: 90 },
-  event:      { min: 10000,  max: 1000000, step: 10000, ticks: ["₹10K","₹2L","₹5L","₹10L"],  durMax: 60 },
+  event:      { min: 10000,  max: 1000000, step: 10000, ticks: ["₹10K","₹2L","₹5L","₹10L"],  durMax: 7  }, // events rarely > 7 days
 };
 
 function setType(type) {
@@ -633,8 +759,30 @@ function setType(type) {
   updateBudget();
   el.intentChip.textContent = TYPE_LABELS[type];
   document.querySelectorAll(".travel-only").forEach(el => el.style.display = type === "travel" ? "" : "none");
-  const originLabels = { travel: "Starting city", gadget: "Your city", relocation: "Current city", event: "Event city" };
+
+  // Duration field: hide for gadget (no concept of days when buying a device)
+  const durationField = el.duration?.closest(".field");
+  if (durationField) durationField.style.display = type === "gadget" ? "none" : "";
+
+  // Origin/city field: hide for gadget (not location-dependent)
+  const originField = el.origin?.closest(".field");
+  if (originField) originField.style.display = type === "gadget" ? "none" : "";
+
+  const originLabels = { travel: "Starting city", relocation: "Current city", event: "Event city" };
   document.getElementById("origin-label").textContent = originLabels[type] || "City";
+
+  // Update example chips for the current mode
+  const chips = EXAMPLE_CHIPS[type] || [];
+  const chipsEl = document.getElementById("example-chips");
+  if (chipsEl) {
+    chipsEl.innerHTML = chips.map(c =>
+      `<span class="example-chip" data-goal="${c.goal}">${c.label}</span>`
+    ).join("");
+    chipsEl.querySelectorAll(".example-chip").forEach(chip => {
+      chip.addEventListener("click", () => { el.goal.value = chip.dataset.goal; saveForm(); });
+    });
+  }
+
   renderGraph(GRAPH_NODES[type]);
   document.querySelectorAll(".persona-btn").forEach((b) => {
     const on = b.dataset.type === type;
@@ -708,19 +856,27 @@ function animateTrace() {
 ═══════════════════════════════════════ */
 function getPayload() {
   const priority = document.querySelector('input[name="priority"]:checked')?.value || "balanced";
+  const type = state.type;
+  const isTravel = type === "travel";
+  const isGadget = type === "gadget";
   return {
-    goal:       el.goal.value.trim(),
-    type:       state.type,
-    budget:     Number(el.budget.value),
-    duration:   Math.min(Math.max(Number(el.duration.value) || 1, 1), BUDGET_RANGE[state.type]?.durMax || 30),
-    origin:     el.origin.value,
-    travellers: state.type === "travel" ? Math.max(1, Number(el.travellers?.value) || 1) : 1,
-    transport:  state.type === "travel" ? (document.querySelector('input[name="transport"]:checked')?.value || "recommend") : undefined,
+    goal:     el.goal.value.trim(),
+    type,
+    budget:   Math.max(1, Number(el.budget.value) || 0),
+    // Duration and origin are irrelevant for gadgets
+    ...(isGadget ? {} : {
+      duration: Math.min(Math.max(Number(el.duration.value) || 1, 1), BUDGET_RANGE[type]?.durMax || 30),
+      origin:   el.origin.value,
+    }),
+    travellers:     isTravel ? Math.max(1, Number(el.travellers?.value) || 1) : undefined,
+    transport:      isTravel ? (document.querySelector('input[name="transport"]:checked')?.value || "recommend") : undefined,
+    departure_date: isTravel ? (document.getElementById("departure-date")?.value || undefined) : undefined,
+    date_flex:      isTravel ? (document.querySelector('input[name="date-flex"]:checked')?.value || "fixed") : undefined,
     priority,
     options: {
-      alerts:         el.alerts.checked,
-      sustainability: el.sustainability.checked,
-      negotiator:     el.negotiator.checked,
+      alerts:         el.alerts?.checked ?? true,
+      sustainability: el.sustainability?.checked ?? true,
+      negotiator:     el.negotiator?.checked ?? false,
     },
   };
 }
@@ -898,15 +1054,25 @@ el.planGrid.addEventListener("click", (e) => {
   const chooseBtn = e.target.closest(".choose-plan-btn");
   if (chooseBtn) {
     e.stopPropagation();
-    selectPlan(chooseBtn.dataset.planId);
+    const planId = chooseBtn.dataset.planId;
+    state.selectedPlanId = planId;
+    // Mark chosen visually
+    el.planGrid.querySelectorAll(".choose-plan-btn").forEach(b => { b.textContent = "Choose this plan →"; b.classList.remove("chosen"); });
     chooseBtn.textContent = "✓ Chosen";
     chooseBtn.classList.add("chosen");
+    // Enable next button
+    const nextBtn = $("cmp-next-0");
+    if (nextBtn) nextBtn.disabled = false;
     return;
   }
 
   if (state.compareMode) return;
   const card = e.target.closest(".plan-card");
-  if (card) selectPlan(card.dataset.planId);
+  if (card) {
+    state.selectedPlanId = card.dataset.planId;
+    const nextBtn = $("cmp-next-0");
+    if (nextBtn) nextBtn.disabled = false;
+  }
 });
 
 /* ═══════════════════════════════════════
@@ -922,6 +1088,9 @@ function renderPlans(result) {
   state.selectedPlanId = plans.find((p)=>p.id==="value")?.id || plans[0]?.id || null;
   state.comparePlanIds = [];
   state.compareMode    = false;
+  goCompareStep(0);
+  // Auto-enable next since a plan is pre-selected
+  setTimeout(() => { const nb = $("cmp-next-0"); if (nb) nb.disabled = false; }, 100);
 
   el.resultTitle.textContent    = result.title || "Optimised plans";
   el.engineMode.textContent     = result.engine_label || "--";
@@ -1067,48 +1236,107 @@ function getPriceComparison(type, bucketLabel, amount) {
   return rows;
 }
 
+function renderPlacesToVisit() {
+  const places = state.lastResult?.places_to_visit;
+  if (!places?.length || state.lastResult?.constraints?.type !== "travel") return "";
+  return `<div class="detail-section">
+    <div class="detail-sec-label">Places to visit</div>
+    <div class="places-grid">
+      ${places.map(p => `<div class="place-card">
+        <div class="place-name">${p.name}</div>
+        <div class="place-why">${p.why}</div>
+        ${p.tip ? `<div class="place-tip">💡 ${p.tip}</div>` : ""}
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderItinerary() {
+  const days = state.lastResult?.itinerary;
+  if (!days?.length || state.lastResult?.constraints?.type !== "travel") return "";
+  return `<div class="detail-section">
+    <div class="detail-sec-label">Day-by-day itinerary</div>
+    <div class="itinerary-list">
+      ${days.map(d => `<div class="itin-day">
+        <div class="itin-day-header">
+          <span class="itin-day-num">Day ${d.day}</span>
+          <span class="itin-day-title">${d.title}</span>
+          ${d.estimated_cost ? `<span class="itin-day-cost">~${money(d.estimated_cost)}</span>` : ""}
+        </div>
+        <ul class="itin-activities">
+          ${(d.activities || []).map(a => `<li>${a}</li>`).join("")}
+        </ul>
+        ${d.meals ? `<div class="itin-meals">🍽 ${d.meals}</div>` : ""}
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+
 function renderTravelPackages() {
   const pkgs = state.lastResult?.travel_packages;
   if (!pkgs?.length || state.lastResult?.constraints?.type !== "travel") return "";
   const budget = state.lastResult?.constraints?.budget || 0;
+  const modeIcons = { flight:"✈️", train:"🚂", bus:"🚌", cab:"🚗" };
 
   return `<div class="detail-section travel-packages-section">
     <div class="detail-sec-label">
-      Live package options
+      Lowest prices found online
       <span class="live-price-badge" style="margin-left:6px">Live</span>
     </div>
+    <p style="font-size:.75rem;color:var(--muted);margin:-4px 0 10px">Cheapest site for each option — verified via live web search</p>
     <div class="pkg-grid">
-      ${pkgs.map(pkg => {
+      ${pkgs.map((pkg, idx) => {
         const over = budget > 0 && pkg.total > budget;
         const delta = budget > 0 ? Math.abs(pkg.total - budget) : 0;
+        const isBest = !over && idx === pkgs.findIndex(p => budget === 0 || p.total <= budget);
         const deltaLabel = budget > 0
-          ? `<span class="${over ? "live-over" : "live-under"}">${over ? "↑" : "↓"} ${money(delta)} ${over ? "over" : "under"} budget</span>`
+          ? `<span class="pkg-delta ${over ? "live-over" : "live-under"}">${over ? "↑" : "↓"} ${money(delta)} ${over ? "over" : "under"} budget</span>`
           : "";
-        return `<div class="pkg-card ${over ? "pkg-over" : ""}">
-          <div class="pkg-tier">${pkg.tier}</div>
-          <div class="pkg-total">${money(pkg.total)}</div>
+        const icon = modeIcons[pkg.transport_mode] || "✈️";
+        const hotelNights = pkg.hotel_per_night > 0
+          ? `${money(pkg.hotel_per_night)}/night × ${pkg.nights} = ${money(pkg.hotel_per_night * pkg.nights)}`
+          : "";
+        return `<div class="pkg-card ${over ? "pkg-over" : ""} ${isBest ? "pkg-best" : ""}">
+          ${isBest ? `<div class="pkg-best-badge">Best value</div>` : ""}
+          <div class="pkg-tier-row">
+            <span class="pkg-tier">${pkg.tier}</span>
+            <span class="pkg-total">${money(pkg.total)}</span>
+          </div>
           ${deltaLabel}
+          <div class="pkg-divider"></div>
           <div class="pkg-row">
-            <span class="pkg-icon">${{flight:"✈️",train:"🚂",bus:"🚌",cab:"🚗"}[pkg.transport_mode] || "✈️"}</span>
-            <div>
-              <div class="pkg-label">${pkg.transport_name || pkg.flight_operator || "Transport"} · ${money(pkg.flight_price)}</div>
+            <span class="pkg-icon">${icon}</span>
+            <div class="pkg-row-body">
+              <div class="pkg-label">${pkg.transport_name || pkg.flight_operator || "Transport"}</div>
               ${pkg.transport_detail ? `<div class="pkg-sublabel">${pkg.transport_detail}</div>` : ""}
-              <a class="pkg-book-link" href="${pkg.flight_url}" target="_blank" rel="noopener noreferrer">
-                Lowest on ${pkg.flight_source || "Ixigo"} ↗
-              </a>
+              <div class="pkg-price-line">
+                <span class="pkg-price-hero">${money(pkg.flight_price)}</span>
+                <a class="pkg-lowest-btn" href="${pkg.flight_url}" target="_blank" rel="noopener noreferrer">
+                  Lowest on ${pkg.flight_source || "Ixigo"} ↗
+                </a>
+              </div>
             </div>
           </div>
-          <div class="pkg-row">
-            <span class="pkg-icon">🏨</span>
-            <div>
-              <div class="pkg-label">${pkg.hotel_name || "Hotel"} · ${money(pkg.hotel_per_night)}/night × ${pkg.nights}</div>
-              ${pkg.hotel_address ? `<div class="pkg-sublabel">${pkg.hotel_address}</div>` : ""}
-              <a class="pkg-book-link" href="${pkg.hotel_url}" target="_blank" rel="noopener noreferrer">
-                Lowest on ${pkg.hotel_source || "Booking.com"} ↗
-              </a>
-            </div>
+          <div class="pkg-hotels">
+            ${(pkg.hotels?.length ? pkg.hotels : [{
+              hotel_name: pkg.hotel_name, hotel_address: pkg.hotel_address,
+              hotel_per_night: pkg.hotel_per_night, hotel_source: pkg.hotel_source, hotel_url: pkg.hotel_url
+            }]).map((h, hi) => `
+            <div class="pkg-row ${hi > 0 ? "pkg-hotel-alt" : ""}">
+              <span class="pkg-icon">🏨</span>
+              <div class="pkg-row-body">
+                <div class="pkg-label">${(h.hotel_name || "Hotel").replace(/\s*[\d.]+\s*[/★]\s*\d*\s*$/, "").trim()}${h.hotel_rating ? ` <span class="pkg-rating">${h.hotel_rating}</span>` : ""}</div>
+                ${h.hotel_address ? `<div class="pkg-sublabel">${h.hotel_address}</div>` : ""}
+                <div class="pkg-price-line">
+                  <span class="pkg-price-hero">${money(h.hotel_per_night)}/night × ${pkg.nights}</span>
+                  <a class="pkg-lowest-btn" href="${h.hotel_url}" target="_blank" rel="noopener noreferrer">
+                    ${h.hotel_source ? `Lowest on ${h.hotel_source} ↗` : "Book ↗"}
+                  </a>
+                </div>
+              </div>
+            </div>`).join("")}
           </div>
-          ${pkg.daily_extras > 0 ? `<div class="pkg-extras">+ ${money(pkg.daily_extras)}/day for food, transport & activities</div>` : ""}
+          ${pkg.daily_extras > 0 ? `<div class="pkg-extras">+ ${money(pkg.daily_extras)}/day food, local transport & activities</div>` : ""}
         </div>`;
       }).join("")}
     </div>
@@ -1244,11 +1472,62 @@ function selectPlan(planId) {
                 }
               }
 
+              // Show a single "Search prices" link per bucket (no specific card), not a chip cloud
               const linksHtml = links.length && !specificCard
-                ? `<div class="book-links">${links.map(l=>`<a class="book-link" href="${l.url}" target="_blank" rel="noopener noreferrer">${l.label}</a>`).join("")}</div>`
-                : links.length
-                  ? `<div class="book-links" style="margin-top:4px">${links.map(l=>`<a class="book-link" href="${l.url}" target="_blank" rel="noopener noreferrer">${l.label}</a>`).join("")}</div>`
+                ? `<div class="book-links"><a class="book-link book-link-primary" href="${links[0].url}" target="_blank" rel="noopener noreferrer">Search prices ↗</a></div>`
+                : "";
+              // Gadget Device specific card
+              if (labelLower.includes("device") && b.live_product_name) {
+                const siteEntries = Object.entries(b.live_prices || {}).filter(([,v]) => v > 0)
+                  .sort(([,a],[,b]) => a - b);
+                const lowestSite = b.live_lowest_site || (siteEntries[0]?.[0] ?? "");
+                const siteRows = siteEntries.map(([site, price]) =>
+                  `<div class="bs-site-row${site === lowestSite ? " bs-site-low" : ""}">
+                    <span class="bs-site-name">${site}</span>
+                    <span class="bs-site-price">${money(price)}${site === lowestSite ? " ✓" : ""}</span>
+                  </div>`
+                ).join("");
+                // Derive a type-based icon from product name
+                const pName = (b.live_product_name || "").toLowerCase();
+                const gadgetIcon = pName.includes("phone") || pName.includes("mobile") ? "📱"
+                  : pName.includes("headphone") || pName.includes("earphone") || pName.includes("airpod") ? "🎧"
+                  : pName.includes("camera") || pName.includes("dslr") ? "📷"
+                  : pName.includes("tablet") || pName.includes("ipad") ? "📱"
+                  : pName.includes("watch") ? "⌚"
+                  : pName.includes("tv") || pName.includes("monitor") ? "🖥️"
+                  : pName.includes("keyboard") || pName.includes("mouse") ? "⌨️"
+                  : "💻";
+                const proxySrc = b.live_image_url
+                  ? `/api/imgproxy?url=${encodeURIComponent(b.live_image_url)}`
+                  : null;
+                const imgHtml = proxySrc
+                  ? `<div class="gadget-img-wrap">
+                       <img class="gadget-img" src="${proxySrc}" alt="${b.live_product_name}"
+                            onerror="this.parentElement.innerHTML='<span class=gadget-img-fallback>${gadgetIcon}</span>'" loading="lazy">
+                     </div>`
+                  : `<div class="gadget-img-wrap"><span class="gadget-img-fallback">${gadgetIcon}</span></div>`;
+                const cardOffersHtml = (b.live_card_offers?.length)
+                  ? `<div class="card-offers-section">
+                      <div class="card-offers-title">Card & Bank Offers</div>
+                      ${b.live_card_offers.map(o => `
+                        <div class="card-offer-row">
+                          <span class="card-offer-bank">${o.bank} ${o.card}</span>
+                          <span class="card-offer-desc">${o.offer}${o.max_discount > 0 ? ` (up to ${money(o.max_discount)})` : ""}</span>
+                          <span class="card-offer-site">${o.site}</span>
+                        </div>`).join("")}
+                    </div>`
                   : "";
+                specificCard = `<div class="bucket-specific gadget-device-card">
+                  ${imgHtml}
+                  <div class="bs-body">
+                    <div class="bs-name">${b.live_product_name}</div>
+                    <div class="bs-site-list">${siteRows}</div>
+                    ${b.live_discount_note ? `<div class="bs-detail" style="margin-top:4px;color:var(--green)">🏷 ${b.live_discount_note}</div>` : ""}
+                    ${cardOffersHtml}
+                  </div>
+                </div>`;
+              }
+
               const hasLive = b.live_typical > 0;
               const liveBadge = hasLive
                 ? `<span class="live-price-badge" title="Live web price">Live</span>`
@@ -1270,11 +1549,6 @@ function selectPlan(planId) {
               </div>`;
             }).join("")}
           </div>
-          ${(()=>{
-            const planType = state.lastResult?.constraints?.type || state.type;
-            const goal = state.lastResult?.constraints?.goal || "";
-            return renderPriceComparison(plan, planType, goal);
-          })()}
         </div>
         <div style="display:grid;gap:14px;align-content:start">
           <div class="detail-section">
@@ -1283,29 +1557,12 @@ function selectPlan(planId) {
               ${plan.tradeoffs.map((t)=>`<div class="tradeoff-item">${t}</div>`).join("")}
             </div>
           </div>
-          <div class="detail-section">
-            <div class="detail-sec-label">Savings opportunities</div>
-            <div class="savings-list">
-              ${plan.savings.map((s)=>`<div class="savings-item">${s}</div>`).join("")}
-            </div>
-          </div>
         </div>
       </div>
       ${renderTravelPackages()}
-      <div class="detail-actions">
-        <button class="btn-primary" type="button" id="choose-plan-btn">Choose ${plan.name}</button>
-        <button class="btn-ghost" type="button" id="copy-detail-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-          Copy plan
-        </button>
-        <button class="btn-ghost" type="button" data-view="act">See next steps →</button>
-      </div>
     </div>`;
 
-  $("choose-plan-btn")?.addEventListener("click", () => choosePlan(plan));
   $("copy-detail-btn")?.addEventListener("click", copyPlan);
-  el.detailCard.querySelector('[data-view="act"]')?.addEventListener("click", () => showView("act"));
-  setJourneyStage(3);
 }
 
 /* ═══════════════════════════════════════
@@ -2560,29 +2817,7 @@ document.addEventListener("click", (e) => {
   showView(view);
 });
 
-/* ═══════════════════════════════════════
-   EXAMPLE CHIPS
-═══════════════════════════════════════ */
-(function wireExampleChips() {
-  document.querySelectorAll(".example-chip").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      el.goal.value = chip.dataset.goal;
-      el.goal.dispatchEvent(new Event("input"));
-      // Show a subtle hint
-      const hint = document.getElementById("chip-hint");
-      if (hint) hint.remove();
-      const h = document.createElement("p");
-      h.id = "chip-hint";
-      h.className = "chip-hint";
-      h.textContent = "Tap Generate to continue →";
-      el.goal.parentNode.appendChild(h);
-      setTimeout(() => h?.remove(), 3500);
-      // Highlight submit button
-      const sb = document.getElementById("submit-button");
-      sb?.classList.add("ready-pulse");
-    });
-  });
-})();
+// Example chips are wired dynamically inside setType()
 
 /* ═══════════════════════════════════════
    GOAL VALIDATION / CLARIFICATION
@@ -2683,7 +2918,7 @@ function hideClarificationPanel() {
 }
 
 function validateAndGenerate() {
-  if (!window.__fbUser) {
+  if (false && !window.__fbUser) { // AUTH DISABLED FOR TESTING
     document.getElementById("auth-overlay")?.classList.add("open");
     if (typeof toast === "function") toast("Sign in to generate a plan", "default");
     return;
@@ -2842,6 +3077,7 @@ document.addEventListener("keydown", (e) => {
    INIT
 ═══════════════════════════════════════ */
 setJourneyStage(0);
+wireCmpNav();
 restoreForm();
 loadHealth();
 renderHistoryView(loadStoredHistory());

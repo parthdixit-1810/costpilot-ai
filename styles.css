@@ -406,6 +406,17 @@ ol,ul{margin:0;padding:0;list-style:none}
 @keyframes node-in{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
 .agent-footer{font-size:.7rem;color:var(--muted-lt);padding-top:8px;border-top:1px solid var(--border);text-align:center}
 
+/* ══ COMPARE SUB-PANEL NAV ══ */
+.cmp-breadcrumb{display:flex;align-items:center;gap:6px;padding:8px 0 4px;flex-wrap:wrap}
+.cmp-crumb{font-size:.75rem;font-weight:600;color:var(--muted);padding:4px 12px;border-radius:20px;cursor:pointer;transition:all .18s;border:1px solid transparent}
+.cmp-crumb.done{color:var(--green-dk);cursor:pointer}
+.cmp-crumb.done:hover{background:var(--green-glow)}
+.cmp-crumb.active{color:var(--ink);background:var(--surface);border-color:var(--border);cursor:default}
+.cmp-crumb-sep{color:var(--muted);font-size:.75rem}
+.cmp-panel{display:grid;gap:14px}
+.cmp-panel[hidden]{display:none!important}
+.cmp-nav-bar{display:flex;justify-content:space-between;align-items:center;padding:16px 0 8px;gap:12px;border-top:1px solid var(--border);margin-top:8px}
+
 /* ══ COMPARE VIEW ══ */
 .compare-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .compare-header h2{font-size:clamp(1.35rem,2.5vw,1.85rem);font-weight:800;letter-spacing:-.03em}
@@ -542,23 +553,46 @@ ol,ul{margin:0;padding:0;list-style:none}
 
 /* ── TRAVEL PACKAGES ── */
 .travel-packages-section{grid-column:1/-1;margin-top:4px}
-.pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 @media(max-width:640px){.pkg-grid{grid-template-columns:1fr}}
 .pkg-card{
   border:1px solid var(--border);border-radius:var(--r-sm);
-  padding:12px;display:grid;gap:8px;background:var(--paper);
+  padding:14px;display:grid;gap:10px;background:var(--paper);position:relative;
 }
-.pkg-card.pkg-over{border-color:#f0a0a0;background:rgba(240,100,100,.04)}
-.pkg-tier{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.pkg-total{font-size:1.15rem;font-weight:800;color:var(--ink)}
+.pkg-card.pkg-over{border-color:rgba(220,60,60,.3);background:rgba(240,100,100,.03)}
+.pkg-card.pkg-best{border-color:var(--green);background:rgba(52,211,153,.04)}
+.pkg-best-badge{
+  position:absolute;top:-1px;left:12px;
+  background:var(--green);color:#fff;font-size:.62rem;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:0 0 6px 6px;
+}
+.pkg-tier-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.pkg-tier{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.pkg-total{font-size:1.2rem;font-weight:800;color:var(--ink)}
+.pkg-delta{font-size:.72rem;font-weight:600;margin-top:-4px}
+.pkg-divider{height:1px;background:var(--border);margin:2px 0}
 .pkg-row{display:flex;gap:8px;align-items:flex-start}
-.pkg-icon{font-size:1rem;line-height:1.4}
+.pkg-row-body{display:grid;gap:2px;flex:1;min-width:0}
+.pkg-icon{font-size:1rem;line-height:1.5;flex-shrink:0}
 .pkg-label{font-size:.78rem;font-weight:600;color:var(--ink)}
-.pkg-sublabel{font-size:.69rem;color:var(--muted);margin-top:1px}
-.pkg-book-link{font-size:.72rem;color:var(--green-dk);text-decoration:none;font-weight:600}
-.pkg-book-link::before{content:"✓ ";font-size:.65rem;opacity:.7}
-.pkg-book-link:hover{text-decoration:underline}
-.pkg-extras{font-size:.72rem;color:var(--muted);padding-top:2px;border-top:1px solid var(--border)}
+.pkg-sublabel{font-size:.68rem;color:var(--muted)}
+.pkg-price-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+.pkg-price-hero{font-size:.8rem;font-weight:700;color:var(--ink)}
+.pkg-lowest-btn{
+  font-size:.7rem;color:var(--green-dk);text-decoration:none;font-weight:600;
+  background:rgba(52,211,153,.1);padding:2px 7px;border-radius:20px;white-space:nowrap;
+}
+.pkg-lowest-btn:hover{background:rgba(52,211,153,.2)}
+.pkg-hotels{display:grid;gap:6px}
+.pkg-hotel-alt{padding-top:6px;border-top:1px dashed var(--border)}
+.pkg-rating{font-size:.65rem;font-weight:600;color:var(--green-dk);background:rgba(52,211,153,.12);padding:1px 5px;border-radius:10px}
+.pkg-extras{font-size:.7rem;color:var(--muted);padding-top:6px;border-top:1px solid var(--border)}
+.book-link-primary{
+  font-size:.73rem;font-weight:600;color:var(--green-dk);text-decoration:none;
+  border:1px solid rgba(52,211,153,.4);border-radius:20px;padding:3px 10px;
+  display:inline-block;margin-top:4px;
+}
+.book-link-primary:hover{background:rgba(52,211,153,.08)}
 
 /* ══ ACT VIEW ══ */
 .act-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -963,6 +997,43 @@ html[data-theme="dark"] .modal-overlay{background:rgba(0,0,0,.7)}
 .bs-price{font-size:.75rem;font-weight:600;color:var(--ink)}
 .bs-link{color:var(--green-dk);text-decoration:none;font-weight:700}
 .bs-link:hover{text-decoration:underline}
+.bs-site-row{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;padding:2px 0;color:var(--muted)}
+.bs-site-name{flex:1}
+.bs-site-price{font-weight:600;color:var(--ink)}
+.bs-site-low .bs-site-name,.bs-site-low .bs-site-price{color:var(--green-dk);font-weight:700}
+.bs-site-list{display:grid;gap:1px;margin-top:4px}
+
+/* ══ GADGET DEVICE CARD ══ */
+.gadget-device-card{flex-direction:column;gap:0;padding:0;overflow:hidden}
+.gadget-img-wrap{width:100%;background:color-mix(in srgb,var(--green) 6%,var(--surface));border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;min-height:140px}
+.gadget-img{width:100%;max-height:180px;object-fit:contain;padding:12px}
+.gadget-img-fallback{font-size:5rem;line-height:1}
+.gadget-device-card .bs-body{padding:10px 12px;width:100%}
+.card-offers-section{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}
+.card-offers-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+.card-offer-row{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);font-size:.72rem}
+.card-offer-row:last-child{border-bottom:none}
+.card-offer-bank{font-weight:700;color:var(--ink)}
+.card-offer-desc{color:var(--muted);line-height:1.4}
+.card-offer-site{font-size:.68rem;font-weight:600;color:var(--green-dk)}
+
+/* ══ PLACES TO VISIT ══ */
+.places-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px}
+.place-card{background:var(--surface-2,var(--surface));border:1px solid var(--border);border-radius:12px;padding:12px;display:grid;gap:4px}
+.place-name{font-size:.82rem;font-weight:700;color:var(--ink)}
+.place-why{font-size:.72rem;color:var(--muted);line-height:1.4}
+.place-tip{font-size:.7rem;color:var(--green-dk);margin-top:2px}
+
+/* ══ ITINERARY ══ */
+.itinerary-list{display:grid;gap:10px;margin-top:8px}
+.itin-day{background:var(--surface-2,var(--surface));border:1px solid var(--border);border-radius:12px;padding:14px}
+.itin-day-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.itin-day-num{font-size:.7rem;font-weight:700;background:var(--green);color:#fff;padding:2px 8px;border-radius:20px}
+.itin-day-title{font-size:.85rem;font-weight:700;color:var(--ink);flex:1}
+.itin-day-cost{font-size:.75rem;font-weight:600;color:var(--green-dk);margin-left:auto}
+.itin-activities{margin:0;padding-left:18px;display:grid;gap:3px}
+.itin-activities li{font-size:.78rem;color:var(--muted);line-height:1.4}
+.itin-meals{font-size:.74rem;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
 
 /* ══ BOOKING LINKS (Feature 1) ══ */
 .book-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}

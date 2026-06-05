@@ -146,14 +146,21 @@ def read_json(handler: SimpleHTTPRequestHandler) -> dict[str, Any]:
 
 def normalize(raw: dict[str, Any]) -> dict[str, Any]:
     t = raw.get("type") if raw.get("type") in TYPE_CONFIG else "travel"
+    # Gadget purchases don't have a meaningful duration or origin city
+    is_gadget = (t == "gadget")
     return {
-        "goal":     str(raw.get("goal") or "").strip()[:1200],
-        "type":     t,
-        "budget":   max(1, int(raw.get("budget") or 25000)),
-        "duration": max(1, int(raw.get("duration") or 1)),
-        "origin":   str(raw.get("origin") or "Delhi")[:80],
-        "priority": str(raw.get("priority") or "balanced"),
-        "options":  raw.get("options") if isinstance(raw.get("options"), dict) else {},
+        "goal":       str(raw.get("goal") or "").strip()[:1200],
+        "type":       t,
+        "budget":     max(1, int(raw.get("budget") or 25000)),
+        "duration":   1 if is_gadget else max(1, int(raw.get("duration") or 1)),
+        "origin":     "" if is_gadget else str(raw.get("origin") or "Delhi")[:80],
+        "priority":   str(raw.get("priority") or "balanced"),
+        "options":    raw.get("options") if isinstance(raw.get("options"), dict) else {},
+        "travellers": max(1, int(raw.get("travellers") or 1)),
+        "transport":  str(raw.get("transport") or "recommend"),
+        "departure_date": str(raw.get("departure_date") or ""),
+        "date_flex":  str(raw.get("date_flex") or "fixed"),
+        "retry_only": bool(raw.get("retry_only", False)),
     }
 
 def priority_adj(priority: str, variant_id: str) -> float:
@@ -174,6 +181,21 @@ def cost_breakdown(total: float, goal_type: str, live_prices: dict | None = None
                 row["live_high"]    = int(lp.get("high", 0))
                 row["live_typical"] = int(lp["typical"])
                 row["live_source"]  = str(lp.get("source", "Web"))[:60]
+                # Gadget Device extra fields
+                if lp.get("product_name"):
+                    row["live_product_name"]  = str(lp["product_name"])[:120]
+                if lp.get("lowest_site"):
+                    row["live_lowest_site"]   = str(lp["lowest_site"])[:60]
+                if lp.get("lowest_price"):
+                    row["live_lowest_price"]  = int(lp["lowest_price"])
+                if lp.get("prices") and isinstance(lp["prices"], dict):
+                    row["live_prices"]        = {k: int(v) for k, v in lp["prices"].items() if v}
+                if lp.get("discount_note"):
+                    row["live_discount_note"] = str(lp["discount_note"])[:200]
+                if lp.get("image_url"):
+                    row["live_image_url"] = str(lp["image_url"])[:500]
+                if lp.get("card_offers") and isinstance(lp["card_offers"], list):
+                    row["live_card_offers"] = lp["card_offers"][:6]
         rows.append(row)
     return rows
 
@@ -325,17 +347,20 @@ def full_result(p: dict[str, Any], llm: dict[str, Any] | None = None, live_price
         "knowledge_graph":  {"nodes": cfg["buckets"]},
         "llm_notes":        llm or {"mode": "mock", "reason": "No API key set (ANTHROPIC_API_KEY or GEMINI_API_KEY)"},
         "travel_packages":  travel_packages or [],
+        "places_to_visit":  (llm or {}).get("places_to_visit") or [],
+        "itinerary":        (llm or {}).get("itinerary") or [],
     }
 
-    entry = {
-        "title":      result["title"],
-        "budget":     p["budget"],
-        "engine":     result["engine_label"],
-        "type":       p["type"],
-        "goal":       p["goal"],
-        "created_at": int(time.time()),
-    }
-    db_push_plan(entry, payload=result)
+    if not p.get("retry_only"):
+        entry = {
+            "title":      result["title"],
+            "budget":     p["budget"],
+            "engine":     result["engine_label"],
+            "type":       p["type"],
+            "goal":       p["goal"],
+            "created_at": int(time.time()),
+        }
+        db_push_plan(entry, payload=result)
     result["history"] = db_load_history(12)
     return result
 
@@ -348,6 +373,8 @@ SYSTEM_PROMPT = (
     '  "summary": {"headline": string, "decision": string},\n'
     '  "assumptions": [string],\n'
     '  "risks": [string],\n'
+    '  "places_to_visit": [{"name": string, "why": string, "tip": string}],\n'
+    '  "itinerary": [{"day": number, "title": string, "activities": [string], "meals": string, "estimated_cost": number}],\n'
     '  "plans": {\n'
     '    "cheapest": {"explanation": string, "tradeoffs": [string,string,string], "savings": [string,string,string]},\n'
     '    "fastest":  {"explanation": string, "tradeoffs": [string,string,string], "savings": [string,string,string]},\n'
@@ -356,6 +383,10 @@ SYSTEM_PROMPT = (
     "  }\n"
     "}\n"
     "Be specific to the Indian market, destination, and budget. "
+    "For places_to_visit: list 5-8 must-see spots at the destination with a short why and practical tip. "
+    "For itinerary: provide a day-by-day plan matching the trip duration — each day has a title, 3-5 activities, meals suggestion, and estimated daily spend in INR. "
+    "If travel dates are provided, use actual calendar dates for each itinerary day. "
+    "If date_flex is not fixed, note the best date window for cheaper prices. "
     "If transport_mode is 'recommend best option', compare flight/train/bus/cab costs and clearly state which is cheapest/fastest/best-value for the route. "
     "If travellers > 1, scale transit costs accordingly and note per-person vs total. "
     "Keep each string under 120 characters. No markdown, no extra keys."
@@ -377,6 +408,10 @@ def _user_msg(p: dict[str, Any]) -> str:
         msg["transport_mode"] = p["transport"]
     elif p.get("transport") == "recommend":
         msg["transport_mode"] = "recommend best option among flight/train/bus/cab and explain why"
+    if p.get("departure_date"):
+        msg["departure_date"] = p["departure_date"]
+    if p.get("date_flex") and p["date_flex"] != "fixed":
+        msg["date_flexibility"] = p["date_flex"]
     return json.dumps(msg, ensure_ascii=False)
 
 def _parse_llm_text(text: str) -> dict[str, Any]:
@@ -424,25 +459,143 @@ def _gemini_raw_text(prompt: str, max_tokens: int = 1000) -> str | None:
         print(f"[gemini_raw] error: {e}", flush=True)
         return None
 
-PACKAGES_JSON_TEMPLATE = """{
-  "destination": "string",
-  "origin": "string",
-  "nights": 0,
-  "per_day_extras": {"food": 0, "local_transport": 0, "activities": 0},
-  "packages": [
-    {"tier":"Budget","transport_mode":"bus|train|flight|cab","transport_name":"specific service name","transport_detail":"class or time","flight_price":0,"flight_source":"cheapest site","flight_operator":"operator","hotel_per_night":0,"hotel_source":"cheapest site","hotel_name":"specific real property","hotel_address":"area, city","total":0},
-    {"tier":"Comfort","transport_mode":"...","transport_name":"...","transport_detail":"...","flight_price":0,"flight_source":"...","flight_operator":"...","hotel_per_night":0,"hotel_source":"...","hotel_name":"...","hotel_address":"...","total":0},
-    {"tier":"Premium","transport_mode":"...","transport_name":"...","transport_detail":"...","flight_price":0,"flight_source":"...","flight_operator":"...","hotel_per_night":0,"hotel_source":"...","hotel_name":"...","hotel_address":"...","total":0}
-  ]
-}"""
+PACKAGES_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "destination": {"type": "string"},
+        "origin": {"type": "string"},
+        "nights": {"type": "integer"},
+        "per_day_extras": {
+            "type": "object",
+            "properties": {
+                "food": {"type": "integer"},
+                "local_transport": {"type": "integer"},
+                "activities": {"type": "integer"},
+            },
+            "required": ["food", "local_transport", "activities"],
+        },
+        "packages": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "tier": {"type": "string", "enum": ["Budget", "Comfort", "Premium"]},
+                    "transport_mode": {"type": "string"},
+                    "transport_name": {"type": "string"},
+                    "transport_detail": {"type": "string"},
+                    "flight_price": {"type": "integer"},
+                    "flight_source": {"type": "string"},
+                    "flight_operator": {"type": "string"},
+                    "hotels": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "hotel_name": {"type": "string"},
+                                "hotel_address": {"type": "string"},
+                                "hotel_per_night": {"type": "integer"},
+                                "hotel_source": {"type": "string"},
+                                "hotel_rating": {"type": "string"},
+                            },
+                            "required": ["hotel_name", "hotel_address", "hotel_per_night", "hotel_source", "hotel_rating"],
+                        },
+                    },
+                    "total": {"type": "integer"},
+                },
+                "required": ["tier", "transport_mode", "transport_name", "transport_detail",
+                             "flight_price", "flight_source", "flight_operator", "hotels", "total"],
+            },
+        },
+    },
+    "required": ["destination", "origin", "nights", "per_day_extras", "packages"],
+}
 
-def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800) -> dict | None:
-    """Call Gemini without tools to produce strict JSON. If json_schema is empty, raw_text is the full prompt."""
+# Reusable bucket schema (low/high/typical/source) for non-travel types
+def _bucket_prop():
+    return {"type": "object", "properties": {
+        "low": {"type": "integer"}, "high": {"type": "integer"},
+        "typical": {"type": "integer"}, "source": {"type": "string"},
+    }, "required": ["low", "high", "typical", "source"]}
+
+GADGET_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "Device": {"type": "object", "properties": {
+            "product_name": {"type": "string"},
+            "image_url": {"type": "string"},
+            "lowest_price": {"type": "integer"},
+            "lowest_site": {"type": "string"},
+            "lowest_url_hint": {"type": "string"},
+            "prices": {"type": "object", "properties": {
+                "Flipkart": {"type": "integer"}, "Amazon": {"type": "integer"},
+                "Croma": {"type": "integer"}, "Reliance Digital": {"type": "integer"},
+                "TataCliq": {"type": "integer"},
+            }, "required": ["Flipkart", "Amazon", "Croma", "Reliance Digital", "TataCliq"]},
+            "discount_note": {"type": "string"},
+            "card_offers": {
+                "type": "array",
+                "items": {"type": "object", "properties": {
+                    "bank": {"type": "string"},
+                    "card": {"type": "string"},
+                    "offer": {"type": "string"},
+                    "max_discount": {"type": "integer"},
+                    "site": {"type": "string"},
+                }, "required": ["bank", "card", "offer", "max_discount", "site"]},
+            },
+            "low": {"type": "integer"}, "high": {"type": "integer"},
+            "typical": {"type": "integer"}, "source": {"type": "string"},
+        }, "required": ["product_name", "image_url", "lowest_price", "lowest_site", "lowest_url_hint",
+                        "prices", "discount_note", "card_offers", "low", "high", "typical", "source"]},
+        "Warranty": _bucket_prop(),
+        "Accessories": _bucket_prop(),
+        "Discounts": _bucket_prop(),
+        "Resale buffer": _bucket_prop(),
+    },
+    "required": ["Device", "Warranty", "Accessories", "Discounts", "Resale buffer"],
+}
+
+RELOCATION_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "Deposit": _bucket_prop(),
+        "Moving": _bucket_prop(),
+        "Furniture": _bucket_prop(),
+        "Commute": _bucket_prop(),
+        "Setup": _bucket_prop(),
+    },
+    "required": ["Deposit", "Moving", "Furniture", "Commute", "Setup"],
+}
+
+EVENT_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "Venue": _bucket_prop(),
+        "Catering": _bucket_prop(),
+        "Decor": _bucket_prop(),
+        "Photo": _bucket_prop(),
+        "Logistics": _bucket_prop(),
+    },
+    "required": ["Venue", "Catering", "Decor", "Photo", "Logistics"],
+}
+
+def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800,
+                    response_schema: dict | None = None) -> dict | None:
+    """Call Gemini without tools to produce strict JSON.
+    If response_schema is provided, uses Gemini's native responseSchema enforcement.
+    If json_schema is a non-empty string, embeds it in the prompt (legacy path).
+    Otherwise raw_text is the full prompt."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
     url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
-    if json_schema:
+    if response_schema:
+        # Native schema enforcement — just send the prompt, schema is in generationConfig
+        prompt = raw_text
+    elif json_schema:
         prompt = (
             f"Extract the key facts from the research below and return ONLY valid JSON matching this schema exactly. "
             f"No prose, no markdown, no explanation — just the JSON object.\n\n"
@@ -450,23 +603,22 @@ def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800) -> d
             f"Research:\n{raw_text}"
         )
     else:
-        prompt = (
-            f"{raw_text}\n\n"
-            f"Return ONLY a valid JSON object matching this template exactly (integers only, no ranges, "
-            f"all string fields must be filled with real specific values):\n{PACKAGES_JSON_TEMPLATE}"
-        )
+        prompt = raw_text
+    gen_config: dict = {
+        "responseMimeType": "application/json",
+        "temperature": 0.1,
+        "maxOutputTokens": max_tokens,
+        "thinkingConfig": {"thinkingBudget": 0},
+    }
+    if response_schema:
+        gen_config["responseSchema"] = response_schema
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "temperature": 0.1,
-            "maxOutputTokens": max_tokens,
-            "thinkingConfig": {"thinkingBudget": 0},
-        },
+        "generationConfig": gen_config,
     }).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=25) as resp:
             data = json.loads(resp.read())
         parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
         text = next((p.get("text","") for p in parts if p.get("text")), "").strip()
@@ -511,11 +663,19 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
     duration   = max(1, int(p.get("duration", 3)))
     goal       = p.get("goal", "")
     dest       = _extract_destination(goal) or "Goa"
-    nights     = max(1, duration - 1)
+    nights     = max(1, duration - 1)  # minimum 1 night even for 1-day trips
     travellers = max(1, int(p.get("travellers", 1)))
     transport  = p.get("transport", "recommend")
+    # date info already on p — used in pax/date note below
 
     pax_note = f"{travellers} traveller{'s' if travellers > 1 else ''}"
+    departure_date = p.get("departure_date", "")
+    date_flex      = p.get("date_flex", "fixed")
+    date_note = ""
+    if departure_date:
+        date_note = f" departing {departure_date}"
+        if date_flex != "fixed":
+            date_note += f" (flexible by {date_flex})"
     if transport == "recommend":
         transport_note = "Compare flight vs train vs bus vs cab and pick the best value option"
     else:
@@ -523,21 +683,24 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
 
     prompt = (
         f"You are a travel research assistant with knowledge of Indian transport and hotels. "
-        f"Give realistic current prices for a {duration}-day trip from {origin} to {dest} ({nights} nights) for {pax_note}.\n\n"
+        f"Give realistic current prices for a {duration}-day trip from {origin} to {dest} ({nights} nights) for {pax_note}{date_note}.\n\n"
         f"{transport_note}.\n\n"
-        f"For Budget tier: use bus or sleeper train + hostel/OYO/guesthouse. "
-        f"For Comfort tier: use AC train or flight + 3-star hotel. "
-        f"For Premium tier: use best flight + 4-5 star hotel.\n\n"
+        f"For Budget tier: use bus or sleeper train + hostel/OYO/guesthouse (minimum 3/5 guest rating). "
+        f"For Comfort tier: use AC train or flight + 3-star hotel (minimum 3.5/5 rating on Booking.com/MakeMyTrip). "
+        f"For Premium tier: use best flight + 4-5 star hotel (minimum 4/5 rating).\n\n"
+        f"IMPORTANT: Only suggest hotels with at least a 3/5 rating. Include the hotel star rating or guest score.\n\n"
         f"For transport: name the SPECIFIC service (e.g. 'IndiGo 6E-234', 'Rajdhani Express 12951', 'KSRTC Sleeper', 'Ola Outstation'). "
         f"Name the cheapest booking site (MakeMyTrip/Ixigo/IRCTC/RedBus/GoIbibo). "
         f"Scale transport price by {travellers} traveller(s).\n\n"
-        f"For hotel: name a SPECIFIC real property (e.g. 'The Funky Monkey Hostel', 'Lemon Tree Hotel', 'Taj Exotica'). "
+        f"For hotels: the 'hotels' array in the JSON MUST contain EXACTLY 2 entries per tier (2 different real properties). "
+        f"Name each property specifically (e.g. 'The Funky Monkey Hostel 4.2★', 'Lemon Tree Hotel 4/5'). "
         f"Name the site with the lowest per-night price (MakeMyTrip/Booking.com/OYO/Agoda/Goibibo). "
-        f"Include the area/neighbourhood (e.g. 'Anjuna, Goa').\n\n"
-        f"Also estimate typical per-day costs in {dest}: food, local transport, activities (INR integers)."
+        f"Include the area/neighbourhood and rating for each hotel. Minimum 3/5 rating.\n\n"
+        f"Also estimate typical per-day costs in {dest}: food, local transport, activities (INR integers).\n\n"
+        f"CRITICAL: Each package's 'hotels' array must have exactly 2 objects. Never return just 1 hotel per tier."
     )
 
-    raw = _gemini_to_json(prompt, "", max_tokens=1000)
+    raw = _gemini_to_json(prompt, "", max_tokens=2000, response_schema=PACKAGES_RESPONSE_SCHEMA)
     if not raw or not isinstance(raw.get("packages"), list):
         print(f"[packages] could not extract structured data", flush=True)
         return None
@@ -556,20 +719,23 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
         if not isinstance(pkg, dict):
             continue
         fp  = int(pkg.get("flight_price", 0))
-        hpp = int(pkg.get("hotel_per_night", 0))
-        if fp <= 0 and hpp <= 0:
+        # Support both old single-hotel and new hotels array
+        raw_hotels = pkg.get("hotels") or []
+        if not raw_hotels and pkg.get("hotel_name"):
+            raw_hotels = [{"hotel_name": pkg["hotel_name"], "hotel_address": pkg.get("hotel_address",""),
+                           "hotel_per_night": pkg.get("hotel_per_night", 0),
+                           "hotel_source": pkg.get("hotel_source",""), "hotel_rating": ""}]
+        if fp <= 0 and not raw_hotels:
             continue
-        total = pkg.get("total") or (fp + hpp * nights_val + daily_extra * nights_val)
-        # Build deep booking links
+
         dest_slug   = dest.lower().replace(" ", "-")
         origin_slug = origin.lower().replace(" ", "-")
         dest_up     = dest.replace("-", " ").title()
         origin_up   = origin.replace("-", " ").title()
         transport_mode = (pkg.get("transport_mode") or "flight").lower()
         fs = (pkg.get("flight_source") or "").lower()
-        hs = (pkg.get("hotel_source") or "").lower()
 
-        # Build transport booking URL based on mode + cheapest source
+        # Build transport booking URL
         if "train" in transport_mode or "irctc" in fs:
             transport_url = "https://www.irctc.co.in/nget/train-search"
         elif "bus" in transport_mode:
@@ -588,37 +754,104 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
                 f"https://www.ixigo.com/flight/{origin_slug}-to-{dest_slug}/flights-from-{origin_slug}-to-{dest_slug}"
             )
 
-        hotel_name = pkg.get("hotel_name", "")
-        hotel_query = (hotel_name + " " + dest_up).strip().replace(" ", "+")
-        hotel_url = (
-            f"https://www.oyorooms.com/search?location={dest_up}&q={hotel_name.replace(' ', '+')}" if "oyo" in hs else
-            f"https://www.makemytrip.com/hotels/{dest_slug}-hotels.html?query={hotel_name.replace(' ', '+')}" if "makemytrip" in hs else
-            f"https://www.booking.com/search.html?ss={hotel_query}" if "booking" in hs else
-            f"https://www.goibibo.com/hotels/hotels-in-{dest_slug}/?q={hotel_name.replace(' ', '+')}" if "goibibo" in hs else
-            f"https://www.agoda.com/search?city={dest_up}&q={hotel_name.replace(' ', '+')}" if "agoda" in hs else
-            f"https://www.booking.com/search.html?ss={hotel_query}"
-        )
+        def build_hotel_url(hname: str, hsource: str) -> str:
+            hs = hsource.lower()
+            hq = (hname + " " + dest_up).strip().replace(" ", "+")
+            if "oyo" in hs:      return f"https://www.oyorooms.com/search?location={dest_up}&q={hname.replace(' ', '+')}"
+            if "makemytrip" in hs: return f"https://www.makemytrip.com/hotels/{dest_slug}-hotels.html?query={hname.replace(' ', '+')}"
+            if "booking" in hs:  return f"https://www.booking.com/search.html?ss={hq}"
+            if "goibibo" in hs:  return f"https://www.goibibo.com/hotels/hotels-in-{dest_slug}/?q={hname.replace(' ', '+')}"
+            if "agoda" in hs:    return f"https://www.agoda.com/search?city={dest_up}&q={hname.replace(' ', '+')}"
+            return f"https://www.booking.com/search.html?ss={hq}"
+
+        hotels_out = []
+        for h in raw_hotels[:3]:  # max 3 options
+            hpp = int(h.get("hotel_per_night", 0))
+            hotels_out.append({
+                "hotel_name":      h.get("hotel_name", ""),
+                "hotel_address":   h.get("hotel_address", ""),
+                "hotel_per_night": hpp,
+                "hotel_source":    h.get("hotel_source", ""),
+                "hotel_rating":    h.get("hotel_rating", ""),
+                "hotel_url":       build_hotel_url(h.get("hotel_name",""), h.get("hotel_source","")),
+            })
+
+        # Total uses cheapest hotel option for estimate
+        hpp0 = hotels_out[0]["hotel_per_night"] if hotels_out else 0
+        total = pkg.get("total") or (fp + hpp0 * nights_val + daily_extra * nights_val)
+
         packages.append({
-            "tier":              pkg.get("tier", ""),
-            "transport_mode":    transport_mode,
-            "transport_name":    pkg.get("transport_name", pkg.get("flight_operator", "")),
-            "transport_detail":  pkg.get("transport_detail", ""),
-            "flight_price":      fp,
-            "flight_operator":   pkg.get("flight_operator", ""),
-            "flight_source":     pkg.get("flight_source", ""),
-            "flight_url":        transport_url,
-            "hotel_per_night":   hpp,
-            "hotel_name":        hotel_name,
-            "hotel_address":     pkg.get("hotel_address", ""),
-            "hotel_source":      pkg.get("hotel_source", ""),
-            "hotel_url":         hotel_url,
-            "nights":            nights_val,
-            "daily_extras":      daily_extra,
-            "total":             int(total),
+            "tier":             pkg.get("tier", ""),
+            "transport_mode":   transport_mode,
+            "transport_name":   pkg.get("transport_name", pkg.get("flight_operator", "")),
+            "transport_detail": pkg.get("transport_detail", ""),
+            "flight_price":     fp,
+            "flight_operator":  pkg.get("flight_operator", ""),
+            "flight_source":    pkg.get("flight_source", ""),
+            "flight_url":       transport_url,
+            "hotels":           hotels_out,
+            # Keep legacy single fields for backwards compat
+            "hotel_per_night":  hpp0,
+            "hotel_name":       hotels_out[0]["hotel_name"] if hotels_out else "",
+            "hotel_address":    hotels_out[0]["hotel_address"] if hotels_out else "",
+            "hotel_source":     hotels_out[0]["hotel_source"] if hotels_out else "",
+            "hotel_url":        hotels_out[0]["hotel_url"] if hotels_out else "",
+            "nights":           nights_val,
+            "daily_extras":     daily_extra,
+            "total":            int(total),
         })
 
     print(f"[packages] fetched {len(packages)} travel packages for {origin}→{dest}", flush=True)
     return packages if packages else None
+
+
+def fetch_product_image(product_name: str) -> str | None:
+    """Try multiple free sources to find a publicly accessible product image URL."""
+    import urllib.parse as _up
+
+    pn = product_name.lower()
+
+    # Category → Wikipedia fallback slug (always has a thumbnail)
+    wiki_fallbacks = [
+        (["phone", "mobile", "galaxy", "iphone", "pixel", "oneplus", "redmi", "realme", "poco"], "Smartphone"),
+        (["headphone", "earphone", "earbuds", "airpod", "tws"], "Headphones"),
+        (["camera", "dslr", "mirrorless"], "Digital_camera"),
+        (["tablet", "ipad"], "Tablet_computer"),
+        (["watch", "smartwatch"], "Smartwatch"),
+        (["tv", "television", "monitor", "display"], "Computer_monitor"),
+        (["keyboard", "mouse", "trackpad"], "Computer_keyboard"),
+        (["laptop", "notebook", "macbook", "vivobook", "inspiron", "thinkpad", "zenbook", "swift"], "Laptop"),
+        (["speaker", "soundbar"], "Loudspeaker"),
+        (["router", "wi-fi", "wifi"], "Wireless_router"),
+    ]
+
+    # 1. Try Wikipedia for the specific product first, then brand, then category
+    candidates = []
+    # Specific model (e.g. "ASUS_Vivobook_S16") — may 404 but worth trying
+    candidates.append(product_name.replace(" ", "_"))
+    # Category fallback — most reliable
+    for keywords, slug in wiki_fallbacks:
+        if any(k in pn for k in keywords):
+            candidates.append(slug)
+            break
+    else:
+        candidates.append("Laptop")  # default
+
+    for slug in candidates:
+        try:
+            url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{_up.quote(slug)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "CostPilot/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                data = json.loads(r.read())
+            img = data.get("thumbnail", {}).get("source") or data.get("originalimage", {}).get("source")
+            if img and "upload.wikimedia.org" in img:
+                print(f"[imgfetch] Wikipedia '{slug}' image for: {product_name[:40]}", flush=True)
+                return img
+        except Exception:
+            continue
+
+    print(f"[imgfetch] no image found for: {product_name[:40]}", flush=True)
+    return None
 
 
 def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
@@ -634,42 +867,52 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
     goal_text = p.get("goal", "")
 
     if goal_type == "gadget":
-        prompt = (
-            f"Search Google for CURRENT (2024-2025) price in India for: {goal_text}. "
-            f"Find prices on Flipkart, Amazon India, Croma, Reliance Digital. "
-            f"Return ONLY this JSON, no markdown:\n"
-            f'{{"Device":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Warranty":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Accessories":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Discounts":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Resale buffer":{{"low":0,"high":0,"typical":0,"source":""}}}}'
+        research_prompt = (
+            f"Search Google right now for the LOWEST current price in India for: {goal_text}. "
+            f"Find the EXACT product listing (specific model/variant) and its current price on "
+            f"Flipkart, Amazon India, Croma, Reliance Digital, and TataCliq. "
+            f"Identify which site has the LOWEST price. "
+            f"Find the product image URL from Amazon India or Flipkart product listing (CDN image URL like m.media-amazon.com/images/... or rukminim2.flixcdn.com/image/... — must be a real working URL). "
+            f"Find ALL active bank/card-specific discount offers currently available in India for this product — "
+            f"e.g. 'HDFC Credit Card: 10% instant discount up to ₹1500 on Flipkart', "
+            f"'SBI Debit Card: 5% cashback up to ₹750 on Amazon', 'ICICI Bank: ₹2000 off on Croma'. "
+            f"Also find prices for: extended warranty (1-2 yr), essential accessories (case, charger, etc). "
         )
+        research = _gemini_raw_text(research_prompt, max_tokens=900)
+        if not research:
+            return None
+        result = _gemini_to_json(research, "", max_tokens=800, response_schema=GADGET_RESPONSE_SCHEMA)
+        if result:
+            print(f"[prices] fetched live gadget prices", flush=True)
+            # Fetch a reliable product image (DDG / Wikipedia)
+            product_name = result.get("Device", {}).get("product_name", "") or goal_text
+            img = fetch_product_image(product_name)
+            if img:
+                result.setdefault("Device", {})["image_url"] = img
+        return result
     elif goal_type == "relocation":
         dest = _extract_destination(goal_text) or "Bangalore"
-        prompt = (
+        research_prompt = (
             f"Search Google for CURRENT (2024-2025) relocation costs in India from {origin} to {dest}. "
-            f"Find: security deposit for 1BHK/2BHK, packers & movers cost, "
+            f"Find realistic ranges for: security deposit for 1BHK/2BHK, packers & movers cost, "
             f"basic furniture set, monthly commute cost, setup/utility deposits. "
-            f"Return ONLY this JSON, no markdown:\n"
-            f'{{"Deposit":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Moving":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Furniture":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Commute":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Setup":{{"low":0,"high":0,"typical":0,"source":""}}}}'
+            f"Cite actual sites or listings where possible."
         )
+        research = _gemini_raw_text(research_prompt, max_tokens=900)
+        if not research:
+            return None
+        result = _gemini_to_json(research, "", max_tokens=600, response_schema=RELOCATION_RESPONSE_SCHEMA)
     else:  # event
-        prompt = (
+        research_prompt = (
             f"Search Google for CURRENT (2024-2025) event costs in India for: {goal_text}. "
-            f"Find: venue rental, catering per plate, decoration, photography, logistics. "
-            f"Return ONLY this JSON, no markdown:\n"
-            f'{{"Venue":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Catering":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Decor":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Photo":{{"low":0,"high":0,"typical":0,"source":""}},'
-            f'"Logistics":{{"low":0,"high":0,"typical":0,"source":""}}}}'
+            f"Find realistic ranges for: venue rental, catering per plate, decoration, photography, logistics. "
+            f"Cite actual vendors or platforms where possible."
         )
+        research = _gemini_raw_text(research_prompt, max_tokens=900)
+        if not research:
+            return None
+        result = _gemini_to_json(research, "", max_tokens=600, response_schema=EVENT_RESPONSE_SCHEMA)
 
-    result = _gemini_search(prompt)
     if result:
         print(f"[prices] fetched live prices for {goal_type}", flush=True)
     return result
@@ -685,7 +928,7 @@ def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
         "contents": [{"parts": [{"text": _user_msg(p)}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 4096,
             "temperature": 0.4,
             "thinkingConfig": {"thinkingBudget": 0},
         },
@@ -693,7 +936,7 @@ def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
 
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read())
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         parsed = _parse_llm_text(text)
@@ -783,6 +1026,39 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/history":
             self.send_json({"history": db_load_history(12)})
+            return
+        if self.path.startswith("/api/imgproxy?url="):
+            raw_url = self.path[len("/api/imgproxy?url="):]
+            import urllib.parse as _up
+            img_url = _up.unquote(raw_url)
+            allowed = ("m.media-amazon.com", "rukminim2.flixcdn.com", "rukminim1.flixcdn.com",
+                       "images-na.ssl-images-amazon.com", "croma.com", "tatacliq.com",
+                       "images.unsplash.com", "i.imgur.com",
+                       "duckduckgo.com", "external-content.duckduckgo.com",
+                       "upload.wikimedia.org", "wikipedia.org",
+                       "cdn.mos.cms.futurecdn.net", "static.digit.in",
+                       "images.gsmarena.com", "i.rtings.com")
+            from urllib.parse import urlparse as _uparse
+            host = _uparse(img_url).hostname or ""
+            if not any(host.endswith(a) for a in allowed):
+                self.send_json({"error": "disallowed"}, HTTPStatus.FORBIDDEN)
+                return
+            try:
+                req = urllib.request.Request(img_url, headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; CostPilot/1.0)",
+                    "Referer": img_url,
+                })
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    ctype = r.headers.get("Content-Type", "image/jpeg")
+                    data = r.read(2 * 1024 * 1024)  # max 2MB
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Cache-Control", "public, max-age=3600")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(data)
+            except Exception as e:
+                self.send_json({"error": str(e)}, HTTPStatus.BAD_GATEWAY)
             return
         if self.path in {"/", "/index.html"}:
             self.path = "/index.html"

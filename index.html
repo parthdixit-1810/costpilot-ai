@@ -216,12 +216,7 @@
                 <textarea id="goal" class="field-textarea" rows="3" maxlength="500" placeholder="e.g. Plan a Goa trip for 4 days under ₹25,000…">Plan a Goa trip for 4 days under ₹25,000 with good stays and low travel fatigue</textarea>
               </div>
 
-              <div class="example-chips" id="example-chips">
-                <span class="example-chip" data-goal="Goa trip for 4 days under ₹25,000 from Mumbai">Goa trip</span>
-                <span class="example-chip" data-goal="Buy a MacBook laptop under ₹80,000">Buy a MacBook</span>
-                <span class="example-chip" data-goal="Relocate from Delhi to Bengaluru, 2BHK flat">Relocate to Bengaluru</span>
-                <span class="example-chip" data-goal="Plan a birthday party for 30 people under ₹50,000">Birthday party</span>
-              </div>
+              <div class="example-chips" id="example-chips"></div>
 
               <div id="clarification-panel"></div>
 
@@ -273,6 +268,19 @@
                 <div class="field travel-only">
                   <label class="field-label" for="travellers">Travellers</label>
                   <input id="travellers" type="number" class="field-input" min="1" max="20" value="1">
+                </div>
+                <div class="field travel-only">
+                  <label class="field-label" for="departure-date">Departure date</label>
+                  <input id="departure-date" type="date" class="field-input">
+                </div>
+                <div class="field travel-only">
+                  <label class="field-label">Date flexibility</label>
+                  <div class="priority-tabs" role="radiogroup">
+                    <label class="priority-tab"><input type="radio" name="date-flex" value="fixed" checked><span>Fixed</span></label>
+                    <label class="priority-tab"><input type="radio" name="date-flex" value="±3days"><span>±3 days</span></label>
+                    <label class="priority-tab"><input type="radio" name="date-flex" value="±7days"><span>±1 week</span></label>
+                    <label class="priority-tab"><input type="radio" name="date-flex" value="flexible"><span>Fully flexible</span></label>
+                  </div>
                 </div>
                 <div class="field field-full travel-only">
                   <label class="field-label">Transport mode</label>
@@ -350,9 +358,10 @@
       <div class="view" id="view-compare" hidden>
         <div class="view-inner view-full">
 
+          <!-- Persistent header -->
           <div class="compare-header">
             <div>
-              <span class="step-badge">Step 3 · Compare routes</span>
+              <span class="step-badge" id="compare-step-badge">Step 3 · Compare routes</span>
               <h2 id="result-title">No plan generated yet</h2>
             </div>
             <div class="compare-actions">
@@ -372,76 +381,107 @@
             </div>
           </div>
 
-          <!-- Metric strip -->
-          <div class="metric-strip">
-            <div class="metric-item"><span>Budget cap</span><strong id="metric-budget">--</strong></div>
-            <div class="metric-item metric-green"><span>Best saving</span><strong id="metric-saving">--</strong></div>
-            <div class="metric-item"><span>Recommended</span><strong id="metric-decision">--</strong></div>
-            <div class="metric-item"><span>Engine</span><strong id="engine-mode">--</strong></div>
+          <!-- Sub-step breadcrumb -->
+          <div class="cmp-breadcrumb" id="cmp-breadcrumb">
+            <span class="cmp-crumb active" data-cmp-step="0">Choose plan</span>
+            <span class="cmp-crumb-sep">›</span>
+            <span class="cmp-crumb" data-cmp-step="1">Cost breakdown</span>
+            <span class="cmp-crumb-sep">›</span>
+            <span class="cmp-crumb" data-cmp-step="2">Itinerary</span>
           </div>
 
-          <!-- Budget warning banner (feature 6) -->
-          <div id="budget-warning" style="display:none"></div>
-
-          <!-- What-if budget slider -->
-          <div class="whatif-bar card" id="whatif-bar" style="display:none">
-            <div class="whatif-inner">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span class="whatif-label">What if my budget changes?</span>
-              <input id="whatif-slider" type="range" class="range-slider whatif-range" min="10000" max="500000" step="5000" value="25000">
-              <output class="whatif-output" id="whatif-output">₹25,000</output>
-              <button class="whatif-apply btn-primary" type="button" id="whatif-apply">Re-run</button>
+          <!-- ── SUB-PANEL 0: Pick a plan ── -->
+          <div class="cmp-panel" id="cmp-panel-0">
+            <!-- Metric strip -->
+            <div class="metric-strip">
+              <div class="metric-item"><span>Budget cap</span><strong id="metric-budget">--</strong></div>
+              <div class="metric-item metric-green"><span>Best saving</span><strong id="metric-saving">--</strong></div>
+              <div class="metric-item"><span>Recommended</span><strong id="metric-decision">--</strong></div>
+              <div class="metric-item"><span>Engine</span><strong id="engine-mode">--</strong></div>
             </div>
-          </div>
 
-          <!-- Plan grid -->
-          <div class="plan-grid" id="plan-grid">
-            <div class="plan-skeleton"></div><div class="plan-skeleton"></div>
-            <div class="plan-skeleton"></div><div class="plan-skeleton"></div>
-          </div>
+            <div id="budget-warning" style="display:none"></div>
 
-          <!-- Savings discovery -->
-          <div class="savings-discovery card" id="savings-discovery" style="display:none">
-            <div class="sd-header">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-              <strong>Savings discovery</strong>
-              <span>Quick wins to cut costs without degrading quality</span>
-            </div>
-            <div class="sd-hints" id="sd-hints"></div>
-          </div>
-
-          <!-- AI assumptions -->
-          <div class="ai-notes card" id="ai-notes" style="display:none">
-            <div class="ai-notes-header">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <strong id="ai-notes-header">AI notes</strong>
-            </div>
-            <div class="ai-notes-body">
-              <div class="ai-section" id="ai-assumptions-wrap">
-                <span class="ai-section-label">Assumptions</span>
-                <ul id="ai-assumptions"></ul>
-              </div>
-              <div class="ai-section" id="ai-risks-wrap">
-                <span class="ai-section-label">Risks</span>
-                <ul id="ai-risks"></ul>
+            <div class="whatif-bar card" id="whatif-bar" style="display:none">
+              <div class="whatif-inner">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span class="whatif-label">What if my budget changes?</span>
+                <input id="whatif-slider" type="range" class="range-slider whatif-range" min="10000" max="500000" step="5000" value="25000">
+                <output class="whatif-output" id="whatif-output">₹25,000</output>
+                <button class="whatif-apply btn-primary" type="button" id="whatif-apply">Re-run</button>
               </div>
             </div>
-          </div>
 
-          <!-- Side-by-side comparison panel -->
-          <div class="compare-side card" id="compare-side" style="display:none">
-            <div class="cs-header">
-              <strong>Side-by-side comparison</strong>
-              <button class="cs-close" type="button" id="cs-close">✕</button>
+            <div class="plan-grid" id="plan-grid">
+              <div class="plan-skeleton"></div><div class="plan-skeleton"></div>
+              <div class="plan-skeleton"></div><div class="plan-skeleton"></div>
             </div>
-            <div class="cs-body" id="cs-body"></div>
+
+            <div class="compare-side card" id="compare-side" style="display:none">
+              <div class="cs-header">
+                <strong>Side-by-side comparison</strong>
+                <button class="cs-close" type="button" id="cs-close">✕</button>
+              </div>
+              <div class="cs-body" id="cs-body"></div>
+            </div>
+
+            <div class="cmp-nav-bar">
+              <span></span>
+              <button class="btn-primary cmp-next-btn" id="cmp-next-0" type="button" disabled>View breakdown →</button>
+            </div>
           </div>
 
-          <!-- Detail panel -->
-          <div class="detail-panel card" id="detail-card">
-            <div class="detail-empty">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <p>Select a plan above to see the full cost breakdown, trade-offs, and savings.</p>
+          <!-- ── SUB-PANEL 1: Cost breakdown & trade-offs ── -->
+          <div class="cmp-panel" id="cmp-panel-1" hidden>
+            <div class="detail-panel card" id="detail-card">
+              <div class="detail-empty">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <p>Select a plan to see the full cost breakdown.</p>
+              </div>
+            </div>
+
+            <div class="savings-discovery card" id="savings-discovery" style="display:none">
+              <div class="sd-header">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                <strong>Savings discovery</strong>
+                <span>Quick wins to cut costs without degrading quality</span>
+              </div>
+              <div class="sd-hints" id="sd-hints"></div>
+            </div>
+
+            <div class="ai-notes card" id="ai-notes" style="display:none">
+              <div class="ai-notes-header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <strong id="ai-notes-header">AI notes</strong>
+              </div>
+              <div class="ai-notes-body">
+                <div class="ai-section" id="ai-assumptions-wrap">
+                  <span class="ai-section-label">Assumptions</span>
+                  <ul id="ai-assumptions"></ul>
+                </div>
+                <div class="ai-section" id="ai-risks-wrap">
+                  <span class="ai-section-label">Risks</span>
+                  <ul id="ai-risks"></ul>
+                </div>
+              </div>
+            </div>
+
+            <div class="cmp-nav-bar">
+              <button class="btn-ghost cmp-back-btn" id="cmp-back-1" type="button">← Back to plans</button>
+              <button class="btn-primary cmp-next-btn" id="cmp-next-1" type="button">Itinerary & places →</button>
+            </div>
+          </div>
+
+          <!-- ── SUB-PANEL 2: Itinerary & places ── -->
+          <div class="cmp-panel" id="cmp-panel-2" hidden>
+            <div id="cmp-itinerary-places">
+              <div class="detail-empty" style="padding:40px 0;text-align:center;color:var(--muted)">
+                <p>Generate a plan with Gemini AI to see the day-by-day itinerary and top places to visit.</p>
+              </div>
+            </div>
+            <div class="cmp-nav-bar">
+              <button class="btn-ghost cmp-back-btn" id="cmp-back-2" type="button">← Back to breakdown</button>
+              <button class="btn-primary" id="cmp-choose-final" type="button">Choose this plan →</button>
             </div>
           </div>
 
