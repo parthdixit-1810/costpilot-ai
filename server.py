@@ -181,22 +181,19 @@ def cost_breakdown(total: float, goal_type: str, live_prices: dict | None = None
                 row["live_high"]    = int(lp.get("high", 0))
                 row["live_typical"] = int(lp["typical"])
                 row["live_source"]  = str(lp.get("source", "Web"))[:60]
-                # Gadget Device extra fields
-                if lp.get("product_name"):
-                    row["live_product_name"]  = str(lp["product_name"])[:120]
-                if lp.get("lowest_site"):
-                    row["live_lowest_site"]   = str(lp["lowest_site"])[:60]
-                if lp.get("lowest_price"):
-                    row["live_lowest_price"]  = int(lp["lowest_price"])
-                if lp.get("prices") and isinstance(lp["prices"], dict):
-                    row["live_prices"]        = {k: int(v) for k, v in lp["prices"].items() if v}
-                if lp.get("discount_note"):
-                    row["live_discount_note"] = str(lp["discount_note"])[:200]
-                if lp.get("image_url"):
-                    row["live_image_url"] = str(lp["image_url"])[:500]
-                if lp.get("card_offers") and isinstance(lp["card_offers"], list):
-                    row["live_card_offers"] = lp["card_offers"][:6]
         rows.append(row)
+    # For gadget: attach models array to the Device bucket row
+    if goal_type == "gadget" and live_prices and live_prices.get("models"):
+        for row in rows:
+            if row["label"].lower() == "device":
+                row["live_models"] = live_prices["models"]
+                # Also set live range from top-level
+                if live_prices.get("typical", 0) > 0 and not row.get("live_typical"):
+                    row["live_low"]     = int(live_prices.get("low", 0))
+                    row["live_high"]    = int(live_prices.get("high", 0))
+                    row["live_typical"] = int(live_prices["typical"])
+                    row["live_source"]  = str(live_prices.get("source", "Web"))[:60]
+                break
     return rows
 
 # ── DETERMINISTIC OPTIMIZER ──────────────────────────────────────────────────
@@ -521,41 +518,55 @@ def _bucket_prop():
         "typical": {"type": "integer"}, "source": {"type": "string"},
     }, "required": ["low", "high", "typical", "source"]}
 
+_MODEL_ITEM = {
+    "type": "object",
+    "properties": {
+        "name":        {"type": "string"},   # e.g. "Lenovo IdeaPad Slim 5"
+        "variant":     {"type": "string"},   # e.g. "Intel i5-12th Gen, 16GB RAM, 512GB SSD"
+        "tag":         {"type": "string"},   # e.g. "Best value", "Premium pick", "Budget option"
+        "image_url":   {"type": "string"},   # CDN image URL
+        "prices": {"type": "object", "properties": {
+            "Flipkart":        {"type": "integer"},
+            "Amazon":          {"type": "integer"},
+            "Croma":           {"type": "integer"},
+            "Reliance Digital":{"type": "integer"},
+            "TataCliq":        {"type": "integer"},
+        }, "required": ["Flipkart", "Amazon", "Croma", "Reliance Digital", "TataCliq"]},
+        "lowest_site": {"type": "string"},   # site with lowest price
+        "lowest_url":  {"type": "string"},   # direct product URL on lowest site
+        "key_specs":   {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 6},
+        "pros":        {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 4},
+        "cons":        {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 3},
+        "card_offers": {
+            "type": "array",
+            "items": {"type": "object", "properties": {
+                "bank": {"type": "string"}, "card": {"type": "string"},
+                "offer": {"type": "string"}, "max_discount": {"type": "integer"},
+                "site": {"type": "string"},
+            }, "required": ["bank", "card", "offer", "max_discount", "site"]},
+        },
+    },
+    "required": ["name", "variant", "tag", "image_url", "prices", "lowest_site", "lowest_url", "key_specs", "pros", "cons"],
+}
+
 GADGET_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
-        "Device": {"type": "object", "properties": {
-            "product_name": {"type": "string"},
-            "image_url": {"type": "string"},
-            "lowest_price": {"type": "integer"},
-            "lowest_site": {"type": "string"},
-            "lowest_url_hint": {"type": "string"},
-            "prices": {"type": "object", "properties": {
-                "Flipkart": {"type": "integer"}, "Amazon": {"type": "integer"},
-                "Croma": {"type": "integer"}, "Reliance Digital": {"type": "integer"},
-                "TataCliq": {"type": "integer"},
-            }, "required": ["Flipkart", "Amazon", "Croma", "Reliance Digital", "TataCliq"]},
-            "discount_note": {"type": "string"},
-            "card_offers": {
-                "type": "array",
-                "items": {"type": "object", "properties": {
-                    "bank": {"type": "string"},
-                    "card": {"type": "string"},
-                    "offer": {"type": "string"},
-                    "max_discount": {"type": "integer"},
-                    "site": {"type": "string"},
-                }, "required": ["bank", "card", "offer", "max_discount", "site"]},
-            },
-            "low": {"type": "integer"}, "high": {"type": "integer"},
-            "typical": {"type": "integer"}, "source": {"type": "string"},
-        }, "required": ["product_name", "image_url", "lowest_price", "lowest_site", "lowest_url_hint",
-                        "prices", "discount_note", "card_offers", "low", "high", "typical", "source"]},
-        "Warranty": _bucket_prop(),
-        "Accessories": _bucket_prop(),
-        "Discounts": _bucket_prop(),
+        "models": {
+            "type": "array",
+            "items": _MODEL_ITEM,
+            "minItems": 3, "maxItems": 5,
+        },
+        "Warranty":      _bucket_prop(),
+        "Accessories":   _bucket_prop(),
+        "Discounts":     _bucket_prop(),
         "Resale buffer": _bucket_prop(),
+        "low":     {"type": "integer"},
+        "high":    {"type": "integer"},
+        "typical": {"type": "integer"},
+        "source":  {"type": "string"},
     },
-    "required": ["Device", "Warranty", "Accessories", "Discounts", "Resale buffer"],
+    "required": ["models", "Warranty", "Accessories", "Discounts", "Resale buffer", "low", "high", "typical", "source"],
 }
 
 RELOCATION_RESPONSE_SCHEMA = {
@@ -953,27 +964,26 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
 
     if goal_type == "gadget":
         research_prompt = (
-            f"Search Google right now for the LOWEST current price in India for: {goal_text}. "
-            f"Find the EXACT product listing (specific model/variant) and its current price on "
-            f"Flipkart, Amazon India, Croma, Reliance Digital, and TataCliq. "
-            f"Identify which site has the LOWEST price. "
-            f"Find the product image URL from Amazon India or Flipkart product listing (CDN image URL like m.media-amazon.com/images/... or rukminim2.flixcdn.com/image/... — must be a real working URL). "
-            f"Find ALL active bank/card-specific discount offers currently available in India for this product — "
-            f"e.g. 'HDFC Credit Card: 10% instant discount up to ₹1500 on Flipkart', "
-            f"'SBI Debit Card: 5% cashback up to ₹750 on Amazon', 'ICICI Bank: ₹2000 off on Croma'. "
-            f"Also find prices for: extended warranty (1-2 yr), essential accessories (case, charger, etc). "
+            f"Search Google for the BEST options in India for: {goal_text}\n\n"
+            f"Find 3 to 5 SPECIFIC recommended models (actual product names with variant/specs) "
+            f"across different price ranges and use cases. For each model find:\n"
+            f"1. EXACT current price on Flipkart, Amazon India, Croma, Reliance Digital, TataCliq\n"
+            f"2. Which site has the LOWEST price right now and the direct product URL on that site\n"
+            f"3. A product image CDN URL (from Amazon m.media-amazon.com/images/ or Flipkart rukminim2.flixcdn.com/image/)\n"
+            f"4. Key specs (processor, RAM, storage, display, battery etc)\n"
+            f"5. 2-4 pros and 1-3 cons for each model\n"
+            f"6. Active bank/card discount offers (e.g. HDFC 10% up to ₹1500 on Flipkart)\n"
+            f"7. Tag each model: 'Best value', 'Budget pick', 'Premium pick', 'Performance beast', etc.\n\n"
+            f"Also find: extended warranty cost (1-2 yr), essential accessories bundle price.\n"
+            f"Give REAL model names like 'Lenovo IdeaPad Slim 5 Gen 8 (Intel i5-1235U, 16GB, 512GB SSD)' "
+            f"not generic names. Include exact rupee prices from live listings."
         )
-        research = _gemini_raw_text(research_prompt, max_tokens=900)
+        research = _gemini_raw_text(research_prompt, max_tokens=2000)
         if not research:
             return None
-        result = _gemini_to_json(research, "", max_tokens=800, response_schema=GADGET_RESPONSE_SCHEMA)
+        result = _gemini_to_json(research, "", max_tokens=1500, response_schema=GADGET_RESPONSE_SCHEMA)
         if result:
-            print(f"[prices] fetched live gadget prices", flush=True)
-            # Fetch a reliable product image (DDG / Wikipedia)
-            product_name = result.get("Device", {}).get("product_name", "") or goal_text
-            img = fetch_product_image(product_name)
-            if img:
-                result.setdefault("Device", {})["image_url"] = img
+            print(f"[prices] fetched live gadget prices with {len(result.get('models', []))} models", flush=True)
         return result
     elif goal_type == "relocation":
         dest = _extract_destination(goal_text) or "Bangalore"

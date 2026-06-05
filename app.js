@@ -1272,6 +1272,87 @@ function getPriceComparison(type, bucketLabel, amount) {
   return rows;
 }
 
+function gadgetIcon(name) {
+  const n = (name || "").toLowerCase();
+  return n.includes("phone") || n.includes("mobile") ? "📱"
+    : n.includes("headphone") || n.includes("earphone") || n.includes("airpod") ? "🎧"
+    : n.includes("camera") || n.includes("dslr") ? "📷"
+    : n.includes("tablet") || n.includes("ipad") ? "📱"
+    : n.includes("watch") ? "⌚"
+    : n.includes("tv") || n.includes("monitor") ? "🖥️"
+    : n.includes("keyboard") || n.includes("mouse") ? "⌨️"
+    : "💻";
+}
+
+function renderGadgetModels(models) {
+  if (!models?.length) return "";
+  return `<div class="gadget-models-section">
+    <div class="gadget-models-title">Recommended models</div>
+    <div class="gadget-models-grid">
+      ${models.map((m, idx) => {
+        const icon = gadgetIcon(m.name);
+        const proxySrc = m.image_url ? `/api/imgproxy?url=${encodeURIComponent(m.image_url)}` : null;
+        const imgHtml = proxySrc
+          ? `<img class="gm-img" src="${proxySrc}" alt="${m.name}"
+               onerror="this.outerHTML='<span class=gm-img-fallback>${icon}</span>'" loading="lazy">`
+          : `<span class="gm-img-fallback">${icon}</span>`;
+
+        const siteEntries = Object.entries(m.prices || {}).filter(([,v]) => v > 0).sort(([,a],[,b]) => a - b);
+        const lowestSite = m.lowest_site || siteEntries[0]?.[0] || "";
+        const lowestPrice = siteEntries[0]?.[1] || 0;
+
+        const siteRows = siteEntries.map(([site, price]) => {
+          const isLow = site === lowestSite;
+          return `<div class="gm-site-row${isLow ? " gm-site-low" : ""}">
+            <span class="gm-site-name">${site}</span>
+            <span class="gm-site-price">${money(price)}</span>
+            ${isLow && m.lowest_url ? `<a class="gm-buy-btn" href="${m.lowest_url}" target="_blank" rel="noopener">Buy ↗</a>` : ""}
+          </div>`;
+        }).join("");
+
+        const specsHtml = (m.key_specs || []).map(s => `<span class="gm-spec">${s}</span>`).join("");
+        const prosHtml  = (m.pros  || []).map(p => `<li>✓ ${p}</li>`).join("");
+        const consHtml  = (m.cons  || []).map(c => `<li>✗ ${c}</li>`).join("");
+
+        const cardOffersHtml = (m.card_offers?.length)
+          ? `<div class="gm-card-offers">
+              <div class="gm-card-offers-title">🏦 Bank offers</div>
+              ${m.card_offers.map(o => `<div class="gm-card-row">
+                <span class="gm-card-bank">${o.bank} ${o.card}</span>
+                <span class="gm-card-desc">${o.offer}${o.max_discount > 0 ? ` — up to ${money(o.max_discount)}` : ""}</span>
+                <span class="gm-card-site">${o.site}</span>
+              </div>`).join("")}
+             </div>`
+          : "";
+
+        const tagColor = idx === 0 ? "gm-tag-best" : idx === models.length - 1 ? "gm-tag-premium" : "gm-tag-alt";
+
+        return `<div class="gm-card">
+          <div class="gm-card-header">
+            <div class="gm-img-wrap">${imgHtml}</div>
+            <div class="gm-card-title-wrap">
+              ${m.tag ? `<span class="gm-tag ${tagColor}">${m.tag}</span>` : ""}
+              <div class="gm-name">${m.name}</div>
+              <div class="gm-variant">${m.variant}</div>
+              ${lowestPrice ? `<div class="gm-lowest-price">From ${money(lowestPrice)} <span class="gm-lowest-site">on ${lowestSite}</span></div>` : ""}
+            </div>
+          </div>
+          <div class="gm-specs">${specsHtml}</div>
+          <div class="gm-pros-cons">
+            <ul class="gm-pros">${prosHtml}</ul>
+            <ul class="gm-cons">${consHtml}</ul>
+          </div>
+          <div class="gm-price-compare">
+            <div class="gm-compare-title">Price comparison</div>
+            ${siteRows}
+          </div>
+          ${cardOffersHtml}
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
 function renderPlacesToVisit() {
   const places = state.lastResult?.places_to_visit;
   if (!places?.length || state.lastResult?.constraints?.type !== "travel") return "";
@@ -1514,56 +1595,9 @@ function selectPlan(planId) {
               const linksHtml = links.length && !specificCard
                 ? `<div class="book-links"><a class="book-link book-link-primary" href="${links[0].url}" target="_blank" rel="noopener noreferrer">Search prices ↗</a></div>`
                 : "";
-              // Gadget Device specific card
-              if (labelLower.includes("device") && b.live_product_name) {
-                const siteEntries = Object.entries(b.live_prices || {}).filter(([,v]) => v > 0)
-                  .sort(([,a],[,b]) => a - b);
-                const lowestSite = b.live_lowest_site || (siteEntries[0]?.[0] ?? "");
-                const siteRows = siteEntries.map(([site, price]) =>
-                  `<div class="bs-site-row${site === lowestSite ? " bs-site-low" : ""}">
-                    <span class="bs-site-name">${site}</span>
-                    <span class="bs-site-price">${money(price)}${site === lowestSite ? " ✓" : ""}</span>
-                  </div>`
-                ).join("");
-                // Derive a type-based icon from product name
-                const pName = (b.live_product_name || "").toLowerCase();
-                const gadgetIcon = pName.includes("phone") || pName.includes("mobile") ? "📱"
-                  : pName.includes("headphone") || pName.includes("earphone") || pName.includes("airpod") ? "🎧"
-                  : pName.includes("camera") || pName.includes("dslr") ? "📷"
-                  : pName.includes("tablet") || pName.includes("ipad") ? "📱"
-                  : pName.includes("watch") ? "⌚"
-                  : pName.includes("tv") || pName.includes("monitor") ? "🖥️"
-                  : pName.includes("keyboard") || pName.includes("mouse") ? "⌨️"
-                  : "💻";
-                const proxySrc = b.live_image_url
-                  ? `/api/imgproxy?url=${encodeURIComponent(b.live_image_url)}`
-                  : null;
-                const imgHtml = proxySrc
-                  ? `<div class="gadget-img-wrap">
-                       <img class="gadget-img" src="${proxySrc}" alt="${b.live_product_name}"
-                            onerror="this.parentElement.innerHTML='<span class=gadget-img-fallback>${gadgetIcon}</span>'" loading="lazy">
-                     </div>`
-                  : `<div class="gadget-img-wrap"><span class="gadget-img-fallback">${gadgetIcon}</span></div>`;
-                const cardOffersHtml = (b.live_card_offers?.length)
-                  ? `<div class="card-offers-section">
-                      <div class="card-offers-title">Card & Bank Offers</div>
-                      ${b.live_card_offers.map(o => `
-                        <div class="card-offer-row">
-                          <span class="card-offer-bank">${o.bank} ${o.card}</span>
-                          <span class="card-offer-desc">${o.offer}${o.max_discount > 0 ? ` (up to ${money(o.max_discount)})` : ""}</span>
-                          <span class="card-offer-site">${o.site}</span>
-                        </div>`).join("")}
-                    </div>`
-                  : "";
-                specificCard = `<div class="bucket-specific gadget-device-card">
-                  ${imgHtml}
-                  <div class="bs-body">
-                    <div class="bs-name">${b.live_product_name}</div>
-                    <div class="bs-site-list">${siteRows}</div>
-                    ${b.live_discount_note ? `<div class="bs-detail" style="margin-top:4px;color:var(--green)">🏷 ${b.live_discount_note}</div>` : ""}
-                    ${cardOffersHtml}
-                  </div>
-                </div>`;
+              // Gadget Device — multi-model comparison cards
+              if (labelLower.includes("device") && b.live_models?.length) {
+                specificCard = renderGadgetModels(b.live_models);
               }
 
               const hasLive = b.live_typical > 0;
@@ -1578,7 +1612,8 @@ function selectPlan(planId) {
                       : ""}
                    </div>`
                 : "";
-              return `<div class="bucket-card" style="animation-delay:${i*45}ms">
+              const isDeviceWithModels = labelLower.includes("device") && b.live_models?.length;
+              return `<div class="bucket-card${isDeviceWithModels ? " bucket-card-full" : ""}" style="animation-delay:${i*45}ms">
                 <div class="bucket-card-top">
                   <div class="bucket-card-label">${b.label} ${liveBadge}</div>
                   <div class="bucket-card-amount">${money(b.amount)}</div>
