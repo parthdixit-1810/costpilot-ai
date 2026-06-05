@@ -2922,6 +2922,16 @@ function validateGoal(payload) {
   return missing;
 }
 
+function _rebuildGoalFromResolved(base, resolved) {
+  const additions = Object.values(resolved).filter(Boolean);
+  const newGoal = additions.length ? `${base}, ${additions.join(", ")}` : base;
+  el.goal.value = newGoal;
+  el.goal.dispatchEvent(new Event("input"));
+  // Flash the textarea to draw attention
+  el.goal.classList.add("goal-flash");
+  setTimeout(() => el.goal.classList.remove("goal-flash"), 500);
+}
+
 function showClarificationPanel(missing, payload) {
   const panel = document.getElementById("clarification-panel");
   if (!panel) return;
@@ -2952,6 +2962,7 @@ function showClarificationPanel(missing, payload) {
   panel.classList.add("visible");
 
   const resolved = {};
+  const goalBase = el.goal.value.trim(); // snapshot before clarification
 
   function checkAllResolved() {
     if (Object.keys(resolved).length >= missing.length) {
@@ -2966,10 +2977,6 @@ function showClarificationPanel(missing, payload) {
       const val = btn.dataset.val;
       resolved[key] = val;
 
-      const cur = el.goal.value.trim();
-      el.goal.value = cur ? `${cur}, ${val}` : val;
-      el.goal.dispatchEvent(new Event("input"));
-
       btn.closest(".clarif-question").classList.add("resolved");
       btn.closest(".clarif-chips").querySelectorAll(".clarif-chip").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
@@ -2977,11 +2984,12 @@ function showClarificationPanel(missing, payload) {
       // Clear text input for same key
       btn.closest(".clarif-question").querySelector(".clarif-text-input").value = "";
 
+      _rebuildGoalFromResolved(goalBase, resolved);
       checkAllResolved();
     });
   });
 
-  // Free-text inputs
+  // Free-text inputs — update goal textarea live as user types
   panel.querySelectorAll(".clarif-text-input").forEach((input) => {
     input.addEventListener("input", () => {
       const key = input.dataset.key;
@@ -2989,37 +2997,21 @@ function showClarificationPanel(missing, payload) {
       if (val) {
         resolved[key] = val;
         input.closest(".clarif-question").classList.add("resolved");
-        // Deselect chips
         input.closest(".clarif-question").querySelectorAll(".clarif-chip").forEach(b => b.classList.remove("active"));
       } else {
         delete resolved[key];
         input.closest(".clarif-question").classList.remove("resolved");
       }
+      // Rebuild goal from base + all current resolved values
+      _rebuildGoalFromResolved(goalBase, resolved);
       checkAllResolved();
     });
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        // Commit value to goal
-        const val = input.value.trim();
-        if (val) {
-          const cur = el.goal.value.trim();
-          el.goal.value = cur ? `${cur}, ${val}` : val;
-          el.goal.dispatchEvent(new Event("input"));
-        }
-      }
+      if (e.key === "Enter") { e.preventDefault(); }
     });
   });
 
   document.getElementById("clarif-go-btn")?.addEventListener("click", () => {
-    // Commit any typed-but-not-entered answers
-    panel.querySelectorAll(".clarif-text-input").forEach((input) => {
-      const val = input.value.trim();
-      if (val) {
-        const cur = el.goal.value.trim();
-        el.goal.value = cur ? `${cur}, ${val}` : val;
-      }
-    });
     hideClarificationPanel();
     generatePlan(getPayload());
   });

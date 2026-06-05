@@ -1452,6 +1452,13 @@ html[data-theme="dark"] .modal-overlay{background:rgba(0,0,0,.7)}
   padding: 4px 0; transition: color .15s;
 }
 .clarif-skip:hover { color: var(--ink); }
+
+/* Goal textarea flash when auto-updated from clarification */
+@keyframes goalFlash {
+  0%   { background: rgba(13,159,110,.18); border-color: var(--green); }
+  100% { background: var(--paper); border-color: var(--border); }
+}
+.field-textarea.goal-flash { animation: goalFlash .5s ease forwards; }
 .clarif-go:hover { background: var(--green-dk); }
 
 /* ══ PRICE COMPARISON TABLE ══ */
