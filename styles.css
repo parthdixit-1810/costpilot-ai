@@ -474,7 +474,18 @@ ol,ul{margin:0;padding:0;list-style:none}
 
 /* Plan grid */
 .plan-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.plan-skeleton{height:210px;border-radius:var(--r);background:linear-gradient(90deg,var(--paper) 25%,#e8ede9 50%,var(--paper) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite}
+.plan-skeleton{
+  height:210px;border-radius:var(--r);border:1px solid var(--border);
+  background:linear-gradient(90deg,var(--paper) 25%,color-mix(in srgb,var(--green) 6%,var(--paper)) 50%,var(--paper) 75%);
+  background-size:200% 100%;animation:shimmer 1.6s ease-in-out infinite;
+  position:relative;overflow:hidden;padding:20px;display:flex;flex-direction:column;gap:10px;
+}
+.plan-skeleton::before,.plan-skeleton::after,.plan-skeleton .sk-line{
+  content:'';display:block;border-radius:6px;
+  background:color-mix(in srgb,var(--border) 80%,transparent);
+}
+.plan-skeleton::before{width:55%;height:12px}
+.plan-skeleton::after{width:40%;height:28px;margin-top:4px}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .plan-card{
   display:grid;gap:12px;padding:20px;
@@ -564,6 +575,9 @@ ol,ul{margin:0;padding:0;list-style:none}
 /* Detail panel */
 .detail-panel{overflow:hidden}
 .detail-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px;text-align:center;color:var(--muted)}
+.plan-error-state{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:48px;text-align:center;color:var(--muted);border:1.5px dashed var(--border);border-radius:var(--r)}
+.plan-error-state svg{opacity:.4;color:var(--rose)}
+.plan-error-state p{font-size:.88rem;max-width:260px;line-height:1.5}
 .detail-empty svg{opacity:.3}
 .detail-empty p{font-size:.88rem}
 .detail-body{padding:0;display:grid;gap:0;animation:card-in .3s var(--ease) both}
@@ -1419,6 +1433,12 @@ html[data-theme="dark"] .modal-overlay{background:rgba(0,0,0,.7)}
 .btn-submit:hover { background: var(--green-dk); }
 .btn-submit.ready-pulse { animation: subtlePulse 2s ease-in-out infinite; }
 .btn-submit.ready-pulse:hover { animation: none; }
+.submit-kbd{
+  font-size:.65rem;font-family:inherit;font-weight:600;
+  background:rgba(255,255,255,.18);border-radius:5px;
+  padding:2px 6px;letter-spacing:.02em;
+  opacity:.75;margin-left:auto;flex-shrink:0;
+}
 
 /* ══ PLAN CARD ENHANCEMENTS ══ */
 .plan-card { position: relative; overflow: hidden; }

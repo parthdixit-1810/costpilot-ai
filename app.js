@@ -1,5 +1,10 @@
 "use strict";
 
+/* ── SERVICE WORKER ── */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+
 /* ── PROGRESS TRACKER KEY ── */
 const PROGRESS_KEY = "costpilot_progress_v1";
 
@@ -1778,7 +1783,7 @@ async function loadHealth() {
 async function generatePlan(p) {
   setBusy(true);
   animateTrace();
-  el.planGrid.innerHTML = Array(4).fill(`<div class="plan-skeleton"></div>`).join("");
+  el.planGrid.innerHTML = Array(4).fill(`<div class="plan-skeleton"><span class="sk-line" style="width:70%;height:10px;margin-top:auto"></span></div>`).join("");
   el.detailCard.innerHTML = `<div class="detail-empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/></svg><p>Generating optimised plans…</p></div>`;
   el.savingsDiscovery.style.display = "none";
   el.aiNotes.style.display = "none";
@@ -1794,13 +1799,18 @@ async function generatePlan(p) {
     showRefineBar();
     el.agentDot.classList.remove("active");
     toast("Plans generated!", "success");
+    // Auto-scroll to first plan card
+    setTimeout(() => el.planGrid?.querySelector(".plan-card")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 120);
   } catch (err) {
     el.currentInsight.textContent = err.message;
     renderTrace([{ label: "Plan request failed", status: "error" }]);
-    el.planGrid.innerHTML = "";
+    el.planGrid.innerHTML = `<div class="plan-error-state">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16" r=".5" fill="currentColor"/></svg>
+      <p>Something went wrong. Check your connection and try again.</p>
+      <button class="btn-ghost" onclick="if(state.lastPayload)generatePlan(state.lastPayload)" style="font-size:.82rem;margin-top:8px">↻ Retry</button>
+    </div>`;
     el.agentDot.classList.remove("active");
-    showView("plan");
-    toast(err.message, "error");
+    toast("Generation failed — tap Retry", "error");
   } finally {
     setBusy(false);
   }
@@ -3147,6 +3157,13 @@ el.goal.addEventListener("input", saveForm);
 el.duration.addEventListener("input", saveForm);
 el.origin.addEventListener("change", saveForm);
 el.form.addEventListener("submit", (e) => { e.preventDefault(); validateAndGenerate(); });
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    e.preventDefault();
+    if (state.view === "home") validateAndGenerate();
+    else if (state.view === "compare" && state.lastPayload) generatePlan(state.lastPayload);
+  }
+});
 el.refreshBtn.addEventListener("click", () => { if (state.lastPayload) generatePlan(state.lastPayload); });
 el.refineSubmit?.addEventListener("click", submitRefinement);
 el.refineInput?.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitRefinement(); } });
