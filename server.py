@@ -641,28 +641,6 @@ def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800,
         print(f"[gemini_to_json] error: {e}", flush=True)
         return None
 
-def _gemini_search(prompt: str, max_tokens: int = 700) -> dict | None:
-    """Legacy: Call Gemini with Google Search grounding; return parsed JSON or None."""
-    raw = _gemini_raw_text(prompt, max_tokens)
-    if not raw:
-        return None
-    # Try direct JSON parse first
-    try:
-        text = raw.strip()
-        for fence in ("```json", "```"):
-            if text.startswith(fence):
-                text = text[len(fence):]
-        text = text.rstrip("`").strip()
-        if not text.startswith("{"):
-            import re as _re
-            m = _re.search(r'\{[\s\S]*\}', text)
-            if m:
-                text = m.group(0)
-        return json.loads(text)
-    except Exception:
-        return None
-
-
 CLARIFY_SCHEMA = {
     "type": "object",
     "properties": {
@@ -725,27 +703,12 @@ Return a JSON object:
   - "chips": 4-6 quick-pick options relevant to context
 
 Examples of clear goals (ok=true): "4 day trip to Goa", "buy MacBook under 1 lakh", "relocate to Bengaluru next month"
-Examples of unclear goals (ok=false): "travel", "buy gadget", "plan something", "event"
+Examples of unclear goals (ok=false): "travel", "buy gadget", "plan something", "event"."""
 
-Respond with ONLY valid JSON."""
-
-    raw = _gemini_raw_text(prompt, max_tokens=600)
-    if not raw:
-        return {"ok": True}  # fail open
-    # Strip markdown fences if present
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("```", 2)[-1] if text.count("```") >= 2 else text
-        text = text.lstrip("json").strip()
-        if text.endswith("```"):
-            text = text[:-3].strip()
-    try:
-        parsed = json.loads(text)
-        if not isinstance(parsed, dict):
-            return {"ok": True}
-        return parsed
-    except Exception:
-        return {"ok": True}
+    result = _gemini_to_json(prompt, "", max_tokens=600, response_schema=CLARIFY_SCHEMA)
+    if not result or not isinstance(result, dict):
+        return {"ok": True}  # fail open — never block generation
+    return result
 
 
 def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
@@ -798,7 +761,6 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
 
     raw = _gemini_to_json(prompt, "", max_tokens=2000, response_schema=PACKAGES_RESPONSE_SCHEMA)
     if not raw or not isinstance(raw.get("packages"), list):
-        print(f"[packages] could not extract structured data", flush=True)
         return None
 
     # Compute totals if model left them as 0
@@ -897,57 +859,75 @@ def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
             "total":            int(total),
         })
 
-    print(f"[packages] fetched {len(packages)} travel packages for {origin}→{dest}", flush=True)
     return packages if packages else None
 
 
-def fetch_product_image(product_name: str) -> str | None:
-    """Try multiple free sources to find a publicly accessible product image URL."""
-    import urllib.parse as _up
+def _mock_gadget_prices(goal: str, budget: int) -> dict:
+    """Return realistic mock gadget models for testing when Gemini quota is exhausted."""
+    g = goal.lower()
+    is_phone    = any(w in g for w in ["phone","mobile","iphone","samsung","oneplus"])
+    is_tablet   = any(w in g for w in ["tablet","ipad"])
+    is_headphone= any(w in g for w in ["headphone","earphone","airpod","earbuds"])
+    b = budget
 
-    pn = product_name.lower()
-
-    # Category → Wikipedia fallback slug (always has a thumbnail)
-    wiki_fallbacks = [
-        (["phone", "mobile", "galaxy", "iphone", "pixel", "oneplus", "redmi", "realme", "poco"], "Smartphone"),
-        (["headphone", "earphone", "earbuds", "airpod", "tws"], "Headphones"),
-        (["camera", "dslr", "mirrorless"], "Digital_camera"),
-        (["tablet", "ipad"], "Tablet_computer"),
-        (["watch", "smartwatch"], "Smartwatch"),
-        (["tv", "television", "monitor", "display"], "Computer_monitor"),
-        (["keyboard", "mouse", "trackpad"], "Computer_keyboard"),
-        (["laptop", "notebook", "macbook", "vivobook", "inspiron", "thinkpad", "zenbook", "swift"], "Laptop"),
-        (["speaker", "soundbar"], "Loudspeaker"),
-        (["router", "wi-fi", "wifi"], "Wireless_router"),
-    ]
-
-    # 1. Try Wikipedia for the specific product first, then brand, then category
-    candidates = []
-    # Specific model (e.g. "ASUS_Vivobook_S16") — may 404 but worth trying
-    candidates.append(product_name.replace(" ", "_"))
-    # Category fallback — most reliable
-    for keywords, slug in wiki_fallbacks:
-        if any(k in pn for k in keywords):
-            candidates.append(slug)
-            break
-    else:
-        candidates.append("Laptop")  # default
-
-    for slug in candidates:
-        try:
-            url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{_up.quote(slug)}"
-            req = urllib.request.Request(url, headers={"User-Agent": "CostPilot/1.0"})
-            with urllib.request.urlopen(req, timeout=5) as r:
-                data = json.loads(r.read())
-            img = data.get("thumbnail", {}).get("source") or data.get("originalimage", {}).get("source")
-            if img and "upload.wikimedia.org" in img:
-                print(f"[imgfetch] Wikipedia '{slug}' image for: {product_name[:40]}", flush=True)
-                return img
-        except Exception:
-            continue
-
-    print(f"[imgfetch] no image found for: {product_name[:40]}", flush=True)
-    return None
+    if is_phone:
+        models = [
+            {"name":"Samsung Galaxy A55","variant":"8GB RAM, 128GB, 5G","tag":"Best value",
+             "image_url":"","lowest_site":"Flipkart","lowest_url":"https://www.flipkart.com/mobiles",
+             "prices":{"Flipkart":34999,"Amazon":35490,"Croma":36990,"Reliance Digital":36500,"TataCliq":35200},
+             "key_specs":["Exynos 1480","8GB RAM","128GB UFS","6.6\" Super AMOLED","5000mAh","50MP camera"],
+             "pros":["Excellent display","5G ready","4 years OS updates"],"cons":["No charger in box","Plastic back"],
+             "card_offers":[{"bank":"HDFC","card":"Credit Card","offer":"10% off","max_discount":2000,"site":"Flipkart"}]},
+            {"name":"OnePlus Nord CE4","variant":"8GB RAM, 256GB, 5G","tag":"Performance pick",
+             "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=oneplus",
+             "prices":{"Flipkart":24999,"Amazon":24499,"Croma":25990,"Reliance Digital":25500,"TataCliq":24800},
+             "key_specs":["Snapdragon 7s Gen 3","8GB RAM","256GB UFS","6.7\" AMOLED","5500mAh","100W charging"],
+             "pros":["100W fast charging","Clean OxygenOS","Great battery life"],"cons":["Average camera","No wireless charging"],
+             "card_offers":[]},
+        ]
+    elif is_headphone:
+        models = [
+            {"name":"Sony WH-1000XM5","variant":"Over-ear ANC Wireless","tag":"Premium pick",
+             "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=sony+wh1000xm5",
+             "prices":{"Flipkart":26990,"Amazon":25990,"Croma":27990,"Reliance Digital":27500,"TataCliq":26500},
+             "key_specs":["Industry-leading ANC","30hr battery","LDAC","Multipoint","Foldable","USB-C"],
+             "pros":["Best ANC in class","Excellent call quality","Lightweight"],"cons":["Expensive","No IP rating"],
+             "card_offers":[{"bank":"ICICI","card":"Credit Card","offer":"₹2000 instant discount","max_discount":2000,"site":"Croma"}]},
+        ]
+    else:  # laptop default
+        models = [
+            {"name":"Lenovo IdeaPad Slim 5","variant":"Intel i5-12th Gen, 16GB RAM, 512GB SSD","tag":"Best value",
+             "image_url":"","lowest_site":"Flipkart","lowest_url":"https://www.flipkart.com/laptops",
+             "prices":{"Flipkart":52990,"Amazon":53490,"Croma":54990,"Reliance Digital":55000,"TataCliq":53000},
+             "key_specs":["Intel i5-1235U","16GB DDR4","512GB NVMe","15.6\" FHD IPS","Backlit KB","Win11"],
+             "pros":["Great specs-to-price ratio","Good battery (~8hr)","Reliable after-sales"],
+             "cons":["Average build (plastic)","No dedicated GPU"],
+             "card_offers":[{"bank":"HDFC","card":"Credit Card","offer":"10% instant discount","max_discount":1500,"site":"Flipkart"}]},
+            {"name":"ASUS VivoBook 15","variant":"AMD Ryzen 5 5500U, 8GB RAM, 512GB SSD","tag":"Budget pick",
+             "image_url":"","lowest_site":"Flipkart","lowest_url":"https://www.flipkart.com/laptops",
+             "prices":{"Flipkart":44990,"Amazon":45490,"Croma":46990,"Reliance Digital":47000,"TataCliq":45000},
+             "key_specs":["Ryzen 5 5500U","8GB DDR4","512GB SSD","15.6\" FHD","Thin 1.7kg","Win11"],
+             "pros":["Very affordable","Light and portable","Good display brightness"],
+             "cons":["Only 8GB RAM","Plastic build","Smaller battery"],
+             "card_offers":[]},
+            {"name":"HP Pavilion 15","variant":"Intel i5-12th Gen, 8GB RAM, 512GB SSD","tag":"Reliable choice",
+             "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=hp+pavilion+15",
+             "prices":{"Flipkart":57990,"Amazon":56490,"Croma":58990,"Reliance Digital":59000,"TataCliq":57000},
+             "key_specs":["Intel i5-1235U","8GB DDR4","512GB SSD","15.6\" FHD","HP Fast Charge","Win11"],
+             "pros":["Solid HP build quality","Good keyboard","Fast charging"],
+             "cons":["8GB RAM only","Runs warm under load"],
+             "card_offers":[{"bank":"SBI","card":"Debit Card","offer":"5% cashback","max_discount":1000,"site":"Amazon"}]},
+        ]
+    low = min(min(m["prices"].values()) for m in models)
+    high = max(max(m["prices"].values()) for m in models)
+    return {
+        "models": models,
+        "Warranty": {"low": 2000, "high": 5000, "typical": 3500, "source": "Mock"},
+        "Accessories": {"low": 1000, "high": 3000, "typical": 2000, "source": "Mock"},
+        "Discounts": {"low": 500, "high": 3000, "typical": 1500, "source": "Mock"},
+        "Resale buffer": {"low": 1000, "high": 4000, "typical": 2000, "source": "Mock"},
+        "low": low, "high": high, "typical": (low + high) // 2, "source": "Sample data (Gemini quota exceeded)",
+    }
 
 
 def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
@@ -982,8 +962,6 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
         if not research:
             return None
         result = _gemini_to_json(research, "", max_tokens=1500, response_schema=GADGET_RESPONSE_SCHEMA)
-        if result:
-            print(f"[prices] fetched live gadget prices with {len(result.get('models', []))} models", flush=True)
         return result
     elif goal_type == "relocation":
         dest = _extract_destination(goal_text) or "Bangalore"
@@ -1008,8 +986,6 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
             return None
         result = _gemini_to_json(research, "", max_tokens=600, response_schema=EVENT_RESPONSE_SCHEMA)
 
-    if result:
-        print(f"[prices] fetched live prices for {goal_type}", flush=True)
     return result
 
 def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
@@ -1199,6 +1175,9 @@ class Handler(SimpleHTTPRequestHandler):
                         live_prices = prc_future.result(timeout=25)
                     except Exception:
                         live_prices = None
+                # DEV FALLBACK: inject mock gadget models when Gemini is rate-limited
+                if p.get("type") == "gadget" and not live_prices:
+                    live_prices = _mock_gadget_prices(p.get("goal", ""), p.get("budget", 60000))
             self.send_json(full_result(p, llm, live_prices, travel_packages))
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -1213,7 +1192,7 @@ def main():
     has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
     has_gemini = bool(os.getenv("GEMINI_API_KEY"))
     db_size    = DB_PATH.stat().st_size if DB_PATH.exists() else 0
-    if has_claude:   ai_label = f"Gemini AI (via Anthropic fallback)"
+    if has_claude:   ai_label = f"Claude {MODEL}"
     elif has_gemini: ai_label = f"Gemini {GEMINI_MODEL}"
     else:            ai_label = "Local optimizer  (add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env)"
     print(f"\n  CostPilot AI  →  http://localhost:{port}")

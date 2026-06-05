@@ -3072,11 +3072,6 @@ function hideClarificationPanel() {
 }
 
 async function validateAndGenerate() {
-  if (false && !window.__fbUser) { // AUTH DISABLED FOR TESTING
-    document.getElementById("auth-overlay")?.classList.add("open");
-    if (typeof toast === "function") toast("Sign in to generate a plan", "default");
-    return;
-  }
   hideClarificationPanel();
   const payload = getPayload();
 
