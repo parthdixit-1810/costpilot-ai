@@ -2928,48 +2928,103 @@ function showClarificationPanel(missing, payload) {
 
   panel.innerHTML = `
     <div class="clarif-inner">
-      <p class="clarif-title">A couple of quick details will help:</p>
-      ${missing.map((m) => `
-        <div class="clarif-question" data-key="${m.key}">
+      <div class="clarif-header">
+        <span class="clarif-icon">🤖</span>
+        <p class="clarif-title">Just a couple of quick details to get you the best plan:</p>
+      </div>
+      ${missing.map((m, i) => `
+        <div class="clarif-question" data-key="${m.key}" data-index="${i}">
           <span class="clarif-q">${m.question}</span>
           <div class="clarif-chips">
-            ${m.chips.map((c) => `<button class="clarif-chip" type="button" data-key="${m.key}" data-val="${c}">${c}</button>`).join("")}
+            ${(m.chips || []).map((c) => `<button class="clarif-chip" type="button" data-key="${m.key}" data-val="${c}">${c}</button>`).join("")}
           </div>
+          <input class="clarif-text-input" type="text" placeholder="Or type your answer…" data-key="${m.key}" autocomplete="off" />
         </div>
       `).join("")}
-      <button class="clarif-go btn-primary" id="clarif-go-btn" type="button" style="display:none">
-        Looks good — Generate plans →
-      </button>
+      <div class="clarif-actions">
+        <button class="clarif-go btn-primary" id="clarif-go-btn" type="button" style="display:none">
+          Generate plans →
+        </button>
+        <button class="clarif-skip" id="clarif-skip-btn" type="button">Skip & generate anyway</button>
+      </div>
     </div>`;
 
   panel.classList.add("visible");
 
-  // Track resolved keys
   const resolved = {};
+
+  function checkAllResolved() {
+    if (Object.keys(resolved).length >= missing.length) {
+      document.getElementById("clarif-go-btn").style.display = "flex";
+    }
+  }
+
+  // Chip clicks
   panel.querySelectorAll(".clarif-chip").forEach((btn) => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.key;
       const val = btn.dataset.val;
       resolved[key] = val;
 
-      // Append value to goal textarea
       const cur = el.goal.value.trim();
       el.goal.value = cur ? `${cur}, ${val}` : val;
       el.goal.dispatchEvent(new Event("input"));
 
-      // Mark question as resolved
       btn.closest(".clarif-question").classList.add("resolved");
       btn.closest(".clarif-chips").querySelectorAll(".clarif-chip").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
 
-      // Check if all resolved
-      if (Object.keys(resolved).length >= missing.length) {
-        document.getElementById("clarif-go-btn").style.display = "flex";
+      // Clear text input for same key
+      btn.closest(".clarif-question").querySelector(".clarif-text-input").value = "";
+
+      checkAllResolved();
+    });
+  });
+
+  // Free-text inputs
+  panel.querySelectorAll(".clarif-text-input").forEach((input) => {
+    input.addEventListener("input", () => {
+      const key = input.dataset.key;
+      const val = input.value.trim();
+      if (val) {
+        resolved[key] = val;
+        input.closest(".clarif-question").classList.add("resolved");
+        // Deselect chips
+        input.closest(".clarif-question").querySelectorAll(".clarif-chip").forEach(b => b.classList.remove("active"));
+      } else {
+        delete resolved[key];
+        input.closest(".clarif-question").classList.remove("resolved");
+      }
+      checkAllResolved();
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        // Commit value to goal
+        const val = input.value.trim();
+        if (val) {
+          const cur = el.goal.value.trim();
+          el.goal.value = cur ? `${cur}, ${val}` : val;
+          el.goal.dispatchEvent(new Event("input"));
+        }
       }
     });
   });
 
   document.getElementById("clarif-go-btn")?.addEventListener("click", () => {
+    // Commit any typed-but-not-entered answers
+    panel.querySelectorAll(".clarif-text-input").forEach((input) => {
+      const val = input.value.trim();
+      if (val) {
+        const cur = el.goal.value.trim();
+        el.goal.value = cur ? `${cur}, ${val}` : val;
+      }
+    });
+    hideClarificationPanel();
+    generatePlan(getPayload());
+  });
+
+  document.getElementById("clarif-skip-btn")?.addEventListener("click", () => {
     hideClarificationPanel();
     generatePlan(getPayload());
   });
@@ -2980,7 +3035,7 @@ function hideClarificationPanel() {
   if (panel) { panel.innerHTML = ""; panel.classList.remove("visible"); }
 }
 
-function validateAndGenerate() {
+async function validateAndGenerate() {
   if (false && !window.__fbUser) { // AUTH DISABLED FOR TESTING
     document.getElementById("auth-overlay")?.classList.add("open");
     if (typeof toast === "function") toast("Sign in to generate a plan", "default");
@@ -2988,14 +3043,51 @@ function validateAndGenerate() {
   }
   hideClarificationPanel();
   const payload = getPayload();
-  const missing = validateGoal(payload);
-  if (missing.length === 0) {
+
+  // Quick client-side check first — if obviously blank
+  if (!payload.goal || payload.goal.trim().length < 3) {
+    showClarificationPanel([{ key: "goal", question: "What would you like to plan?", chips: ["Goa trip for 4 days", "Buy a laptop under ₹70k", "Relocate to Bengaluru", "Birthday party for 30 guests"] }], payload);
+    return;
+  }
+
+  // Show a subtle "checking…" state
+  const submitBtn = document.getElementById("submit-button");
+  const origText = submitBtn?.textContent;
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Checking…"; }
+
+  try {
+    const res = await fetch("/api/clarify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: payload.goal, type: payload.type, budget: payload.budget }),
+    });
+    const data = res.ok ? await res.json() : null;
+
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = origText; }
+
+    if (data && !data.ok && data.questions && data.questions.length > 0) {
+      // Apply spelling correction silently if provided
+      if (data.corrected_goal && data.corrected_goal !== payload.goal) {
+        el.goal.value = data.corrected_goal;
+        payload.goal = data.corrected_goal;
+        if (typeof toast === "function") toast(`✏️ Corrected: "${data.corrected_goal}"`, "default");
+      }
+      showClarificationPanel(data.questions, payload);
+      setTimeout(() => {
+        document.getElementById("clarification-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    } else {
+      // Apply spelling correction even on ok=true
+      if (data?.corrected_goal && data.corrected_goal !== payload.goal) {
+        el.goal.value = data.corrected_goal;
+        payload.goal = data.corrected_goal;
+      }
+      generatePlan(payload);
+    }
+  } catch (_) {
+    // Network error — proceed anyway
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = origText; }
     generatePlan(payload);
-  } else {
-    showClarificationPanel(missing, payload);
-    setTimeout(() => {
-      document.getElementById("clarification-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
   }
 }
 

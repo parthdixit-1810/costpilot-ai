@@ -652,6 +652,91 @@ def _gemini_search(prompt: str, max_tokens: int = 700) -> dict | None:
         return None
 
 
+CLARIFY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ok": {"type": "boolean"},
+        "corrected_goal": {"type": "string"},
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string"},
+                    "question": {"type": "string"},
+                    "chips": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 8}
+                },
+                "required": ["key", "question", "chips"]
+            },
+            "minItems": 0,
+            "maxItems": 4
+        }
+    },
+    "required": ["ok"]
+}
+
+def _clarify_goal(goal: str, type_: str, budget: str) -> dict:
+    """Ask Gemini if the goal is clear enough; return questions if not."""
+    if not goal:
+        q = {"key": "goal", "question": "What would you like to plan?",
+             "chips": ["Goa trip for 4 days", "Buy a laptop under ₹70k", "Relocate to Bengaluru", "Birthday party for 30 guests"]}
+        return {"ok": False, "questions": [q]}
+
+    type_hints = {
+        "travel":     "destination city/country, duration in days, and optionally origin city",
+        "gadget":     "specific product name or category and budget range",
+        "relocation": "destination city, reason for moving, and approximate timeline",
+        "event":      "type of event (birthday/wedding/etc.), guest count, and budget",
+    }
+    hint = type_hints.get(type_, "enough detail to plan accurately")
+
+    prompt = f"""You are a helpful assistant that checks if a user's goal is clear enough for planning.
+
+Type: {type_}
+User goal: "{goal}"
+Budget: {budget if budget else "not specified"}
+
+Required info for {type_}: {hint}
+
+Your job:
+1. Fix obvious spelling mistakes in the goal (e.g. "gao" → "Goa", "lapttop" → "laptop")
+2. Identify what CRITICAL information is missing — only ask if truly needed
+3. If the goal is vague (e.g. "travel somewhere", "buy something") ask for specifics
+4. Do NOT ask for info already present in the goal
+5. If the goal is clear enough, return ok=true with no questions
+
+Return a JSON object:
+- "ok": true if goal is clear (no questions needed), false if clarification needed
+- "corrected_goal": the goal with spelling fixed (same if no changes needed)
+- "questions": array of up to 3 missing fields, each with:
+  - "key": short identifier (e.g. "destination", "duration")
+  - "question": friendly question to ask the user
+  - "chips": 4-6 quick-pick options relevant to context
+
+Examples of clear goals (ok=true): "4 day trip to Goa", "buy MacBook under 1 lakh", "relocate to Bengaluru next month"
+Examples of unclear goals (ok=false): "travel", "buy gadget", "plan something", "event"
+
+Respond with ONLY valid JSON."""
+
+    raw = _gemini_raw_text(prompt, max_tokens=600)
+    if not raw:
+        return {"ok": True}  # fail open
+    # Strip markdown fences if present
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.split("```", 2)[-1] if text.count("```") >= 2 else text
+        text = text.lstrip("json").strip()
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    try:
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            return {"ok": True}
+        return parsed
+    except Exception:
+        return {"ok": True}
+
+
 def fetch_travel_packages(p: dict[str, Any]) -> list[dict] | None:
     """
     Use Gemini + Google Search to find real current flight & hotel prices
@@ -1065,6 +1150,17 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):  # noqa: N802
+        if self.path == "/api/clarify":
+            try:
+                body = read_json(self)
+                goal = (body.get("goal") or "").strip()
+                type_ = (body.get("type") or "travel").strip()
+                budget = body.get("budget", "")
+                result = _clarify_goal(goal, type_, budget)
+                self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": True})  # fail open — don't block generation
+            return
         if self.path != "/api/plan":
             self.send_json({"error": "Unknown route"}, HTTPStatus.NOT_FOUND)
             return

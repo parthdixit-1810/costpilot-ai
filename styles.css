@@ -1406,32 +1406,52 @@ html[data-theme="dark"] .modal-overlay{background:rgba(0,0,0,.7)}
 
 /* ══ CLARIFICATION PANEL ══ */
 .clarif-inner {
-  background: var(--surface); border: 1.5px solid rgba(13,159,110,.3);
-  border-radius: var(--r-sm); padding: 16px 18px; margin-top: 12px;
-  display: flex; flex-direction: column; gap: 14px;
-  animation: fadeIn .2s ease;
+  background: linear-gradient(135deg, rgba(13,159,110,.06) 0%, var(--surface) 100%);
+  border: 1.5px solid rgba(13,159,110,.35);
+  border-radius: var(--r-sm); padding: 18px 20px; margin-top: 12px;
+  display: flex; flex-direction: column; gap: 16px;
+  animation: fadeIn .25s ease;
 }
 #clarification-panel:empty { display: none; }
-.clarif-title { font-size: .85rem; font-weight: 700; color: var(--green-dk); margin: 0; }
-.clarif-question { display: flex; flex-direction: column; gap: 7px; }
-.clarif-question.resolved .clarif-q { color: var(--muted); text-decoration: line-through; }
-.clarif-q { font-size: .82rem; font-weight: 600; color: var(--ink); }
+.clarif-header { display: flex; align-items: flex-start; gap: 10px; }
+.clarif-icon { font-size: 1.3rem; line-height: 1; }
+.clarif-title { font-size: .88rem; font-weight: 700; color: var(--green-dk); margin: 0; line-height: 1.4; }
+.clarif-question { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.clarif-question:last-of-type { border-bottom: none; }
+.clarif-question.resolved .clarif-q { color: var(--muted); }
+.clarif-question.resolved { opacity: .75; }
+.clarif-q { font-size: .84rem; font-weight: 700; color: var(--ink); }
 .clarif-chips { display: flex; flex-wrap: wrap; gap: 7px; }
 .clarif-chip {
-  padding: 5px 12px; border-radius: 18px; font-size: .78rem; font-weight: 600;
+  padding: 5px 13px; border-radius: 18px; font-size: .78rem; font-weight: 600;
   background: var(--paper); color: var(--ink);
   border: 1.5px solid var(--border);
   cursor: pointer; transition: background .12s, border-color .12s, color .12s;
 }
 .clarif-chip:hover { background: var(--green-lt); border-color: rgba(13,159,110,.35); color: var(--green-dk); }
 .clarif-chip.active { background: var(--green); color: #fff; border-color: var(--green); }
+.clarif-text-input {
+  margin-top: 4px; padding: 7px 12px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: var(--paper);
+  font-size: .82rem; color: var(--ink); width: 100%; box-sizing: border-box;
+  transition: border-color .15s;
+}
+.clarif-text-input:focus { outline: none; border-color: var(--green); }
+.clarif-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
 .clarif-go {
-  align-self: flex-start; padding: 9px 18px;
-  font-size: .88rem; font-weight: 700;
+  padding: 9px 20px; font-size: .88rem; font-weight: 700;
   background: var(--green); color: #fff;
   border-radius: 10px; cursor: pointer;
-  transition: background .15s;
+  transition: background .15s; border: none;
 }
+.clarif-go:hover { background: var(--green-dk); }
+.clarif-skip {
+  font-size: .8rem; font-weight: 600; color: var(--muted);
+  background: none; border: none; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+  padding: 4px 0; transition: color .15s;
+}
+.clarif-skip:hover { color: var(--ink); }
 .clarif-go:hover { background: var(--green-dk); }
 
 /* ══ PRICE COMPARISON TABLE ══ */
