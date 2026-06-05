@@ -313,11 +313,20 @@ const el = {
 const CMP_PANEL_LABELS = ["Choose plan", "Cost breakdown", "Itinerary & places"];
 
 function goCompareStep(step) {
-  const total = 3;
+  const isTravel = (state.type || state.lastResult?.constraints?.type) === "travel";
+  const total = isTravel ? 3 : 2; // non-travel has no itinerary step
   step = Math.max(0, Math.min(total - 1, step));
   state.compareStep = step;
 
-  for (let i = 0; i < total; i++) {
+  // Hide itinerary crumb + next button for non-travel
+  const itinCrumb = document.querySelector('.cmp-crumb[data-cmp-step="2"]');
+  const itinSep   = itinCrumb?.previousElementSibling;
+  const nextBtn   = $("cmp-next-1");
+  if (itinCrumb) itinCrumb.style.display = isTravel ? "" : "none";
+  if (itinSep)   itinSep.style.display   = isTravel ? "" : "none";
+  if (nextBtn)   nextBtn.style.display   = isTravel ? "" : "none";
+
+  for (let i = 0; i < 3; i++) {
     const panel = $(`cmp-panel-${i}`);
     if (panel) panel.hidden = (i !== step);
   }
