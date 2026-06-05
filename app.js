@@ -2510,7 +2510,10 @@ function renderLifePlan() {
    FORM AUTOSAVE
 ═══════════════════════════════════════ */
 const FORM_SAVE_KEY = "costpilot_form_v1";
-function saveForm() {
+function debounce(fn, ms) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+const saveForm = debounce(function _saveForm() {
   try {
     localStorage.setItem(FORM_SAVE_KEY, JSON.stringify({
       type:     state.type,
@@ -2520,7 +2523,7 @@ function saveForm() {
       origin:   el.origin.value,
     }));
   } catch {}
-}
+}, 300);
 function restoreForm() {
   try {
     const saved = JSON.parse(localStorage.getItem(FORM_SAVE_KEY) || "null");

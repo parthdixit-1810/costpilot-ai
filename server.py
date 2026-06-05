@@ -77,6 +77,8 @@ def get_db():
         cx.close()
 
 def db_push_plan(entry: dict[str, Any], payload: dict[str, Any] | None = None) -> None:
+    global _history_cache
+    _history_cache = (0.0, [])  # invalidate cache
     with get_db() as cx:
         cx.execute(
             "INSERT INTO plans (title, budget, engine, type, goal, created_at, payload) VALUES (?,?,?,?,?,?,?)",
@@ -91,13 +93,22 @@ def db_push_plan(entry: dict[str, Any], payload: dict[str, Any] | None = None) -
             ),
         )
 
+_history_cache: tuple[float, list] = (0.0, [])
+_HISTORY_TTL = 10  # seconds
+
 def db_load_history(limit: int = 12) -> list[dict[str, Any]]:
+    global _history_cache
+    now = time.time()
+    if now - _history_cache[0] < _HISTORY_TTL and _history_cache[1]:
+        return _history_cache[1][:limit]
     with get_db() as cx:
         rows = cx.execute(
             "SELECT title, budget, engine, type, goal, created_at FROM plans ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    _history_cache = (now, result)
+    return result[:limit]
 
 # ── TYPE CONFIG ──────────────────────────────────────────────────────────────
 
@@ -448,7 +459,7 @@ def _gemini_raw_text(prompt: str, max_tokens: int = 1000) -> str | None:
     }).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read())
         parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
         return next((p.get("text","") for p in parts if p.get("text")), "").strip()
@@ -629,7 +640,7 @@ def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800,
     }).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read())
         parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
         text = next((p.get("text","") for p in parts if p.get("text")), "").strip()
@@ -1162,17 +1173,17 @@ class Handler(SimpleHTTPRequestHandler):
                 pkg_future = ex.submit(fetch_travel_packages, p) if p["type"] == "travel" else None
                 prc_future = ex.submit(fetch_real_prices, p)    if p["type"] != "travel" else None
                 try:
-                    llm = ai_future.result(timeout=35)
+                    llm = ai_future.result(timeout=30)
                 except Exception as exc:
                     llm = {"mode": "error", "reason": str(exc), "summary": {"headline": "AI call failed; local optimizer used."}}
                 if pkg_future:
                     try:
-                        travel_packages = pkg_future.result(timeout=25)
+                        travel_packages = pkg_future.result(timeout=22)
                     except Exception:
                         travel_packages = None
                 if prc_future:
                     try:
-                        live_prices = prc_future.result(timeout=25)
+                        live_prices = prc_future.result(timeout=22)
                     except Exception:
                         live_prices = None
                 # DEV FALLBACK: inject mock gadget models when Gemini is rate-limited
