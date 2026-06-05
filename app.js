@@ -206,6 +206,25 @@ const EXAMPLE_CHIPS = {
     { label: "Engagement",      goal: "Plan an engagement ceremony for 80 guests under ₹2,00,000" },
   ],
 };
+const REFINE_CHIPS = {
+  travel: [
+    "Prefer AC train", "Flight only", "Vegetarian food", "Budget hotels", "Add adventure activities",
+    "Include local sightseeing", "Family-friendly options", "Avoid crowded tourist spots",
+  ],
+  gadget: [
+    "Prioritise battery life", "Need upgradeable RAM", "Gaming performance", "Lightweight & portable",
+    "Best display quality", "Include 2-year warranty", "Refurbished options", "Under a lower budget",
+  ],
+  relocation: [
+    "Include pet-friendly housing", "Prefer furnished flat", "Near metro station", "School proximity",
+    "Include packing services", "Under 2-week timeline", "Single floor preferred", "Need co-living options",
+  ],
+  event: [
+    "Outdoor venue preferred", "Include DJ/entertainment", "Veg-only catering", "Destination wedding",
+    "Photography & videography", "Florist & decor only", "Add return gifts", "Reduce guest count to 50",
+  ],
+};
+
 const GRAPH_NODES = {
   travel:     ["Transit", "Stay", "Food", "Activities", "Local transport"],
   gadget:     ["Device", "Warranty", "Accessories", "Discounts", "Resale"],
@@ -227,6 +246,8 @@ const el = {
   negotiator:   $("negotiator"),
   submitBtn:    $("submit-button"),submitLabel:  $("submit-label"),
   submitArrow:  $("submit-arrow"), refreshBtn:   $("refresh-button"),
+  refineBar:    $("refine-bar"),   refineInput:  $("refine-input"),
+  refineSubmit: $("refine-submit"), refineChips: $("refine-chips"),
   shareBtn:     $("share-btn"),
   compareToggleBtn: $("compare-toggle-btn"),
   intentChip:   $("intent-chip"),
@@ -1726,6 +1747,7 @@ async function generatePlan(p) {
     state.lastPayload = p;
     renderTrace(result.trace || []);
     renderPlans(result);
+    showRefineBar();
     el.agentDot.classList.remove("active");
     toast("Plans generated!", "success");
   } catch (err) {
@@ -1738,6 +1760,45 @@ async function generatePlan(p) {
   } finally {
     setBusy(false);
   }
+}
+
+/* ═══════════════════════════════════════
+   REFINE BAR
+═══════════════════════════════════════ */
+function showRefineBar() {
+  if (!el.refineBar) return;
+  const type = state.lastResult?.constraints?.type || state.type;
+  el.refineBar.style.display = "";
+  // Populate suggestion chips
+  const chips = REFINE_CHIPS[type] || [];
+  if (el.refineChips) {
+    el.refineChips.innerHTML = chips.map(c =>
+      `<span class="refine-chip" data-text="${c}">${c}</span>`
+    ).join("");
+    el.refineChips.querySelectorAll(".refine-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        el.refineInput.value = chip.dataset.text;
+        el.refineInput.focus();
+        el.refineChips.querySelectorAll(".refine-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+      });
+    });
+  }
+}
+
+async function submitRefinement() {
+  const text = el.refineInput?.value?.trim();
+  if (!text || !state.lastPayload) return;
+  const p = {
+    ...state.lastPayload,
+    refinement: text,
+    // Merge refinement into goal so server sees it
+    goal: `${state.lastPayload.goal}. Additional requirement: ${text}`,
+  };
+  el.refineInput.value = "";
+  el.refineChips?.querySelectorAll(".refine-chip").forEach(c => c.classList.remove("active"));
+  toast(`Refining with: "${text}"`, "default", 2000);
+  await generatePlan(p);
 }
 
 /* ═══════════════════════════════════════
@@ -2961,6 +3022,8 @@ el.duration.addEventListener("input", saveForm);
 el.origin.addEventListener("change", saveForm);
 el.form.addEventListener("submit", (e) => { e.preventDefault(); validateAndGenerate(); });
 el.refreshBtn.addEventListener("click", () => { if (state.lastPayload) generatePlan(state.lastPayload); });
+el.refineSubmit?.addEventListener("click", submitRefinement);
+el.refineInput?.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitRefinement(); } });
 el.shareBtn.addEventListener("click", copyPlan);
 el.compareToggleBtn.addEventListener("click", toggleCompareMode);
 el.csClose.addEventListener("click", () => {
