@@ -273,6 +273,27 @@
                   <label class="field-label" for="departure-date">Departure date</label>
                   <input id="departure-date" type="date" class="field-input">
                 </div>
+                <div class="field event-only" style="display:none">
+                  <label class="field-label" for="event-date">Event date</label>
+                  <input id="event-date" type="date" class="field-input">
+                </div>
+                <div class="field event-only" style="display:none">
+                  <label class="field-label" for="event-guests">Number of guests</label>
+                  <input id="event-guests" type="number" class="field-input" min="10" max="5000" value="100" placeholder="e.g. 200">
+                </div>
+                <div class="field relocation-only" style="display:none">
+                  <label class="field-label" for="relocation-date">Moving date</label>
+                  <input id="relocation-date" type="date" class="field-input">
+                </div>
+                <div class="field relocation-only" style="display:none">
+                  <label class="field-label" for="relocation-dest">Moving to</label>
+                  <select id="relocation-dest" class="field-input field-select">
+                    <optgroup label="North"><option>Delhi</option><option>Lucknow</option><option>Jaipur</option><option>Chandigarh</option><option>Dehradun</option></optgroup>
+                    <optgroup label="West"><option>Mumbai</option><option>Pune</option><option>Ahmedabad</option><option>Surat</option><option>Nagpur</option></optgroup>
+                    <optgroup label="South"><option>Bengaluru</option><option>Chennai</option><option>Hyderabad</option><option>Kochi</option><option>Coimbatore</option></optgroup>
+                    <optgroup label="East"><option>Kolkata</option><option>Bhubaneswar</option><option>Patna</option><option>Guwahati</option></optgroup>
+                  </select>
+                </div>
                 <div class="field travel-only">
                   <label class="field-label">Date flexibility</label>
                   <div class="priority-tabs" role="radiogroup">

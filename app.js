@@ -759,12 +759,14 @@ function setType(type) {
   updateBudget();
   el.intentChip.textContent = TYPE_LABELS[type];
   document.querySelectorAll(".travel-only").forEach(el => el.style.display = type === "travel" ? "" : "none");
+  document.querySelectorAll(".event-only").forEach(el => el.style.display = type === "event" ? "" : "none");
+  document.querySelectorAll(".relocation-only").forEach(el => el.style.display = type === "relocation" ? "" : "none");
 
-  // Duration field: hide for gadget (no concept of days when buying a device)
+  // Duration field: hide for gadget
   const durationField = el.duration?.closest(".field");
   if (durationField) durationField.style.display = type === "gadget" ? "none" : "";
 
-  // Origin/city field: hide for gadget (not location-dependent)
+  // Origin/city field: hide for gadget
   const originField = el.origin?.closest(".field");
   if (originField) originField.style.display = type === "gadget" ? "none" : "";
 
@@ -872,6 +874,10 @@ function getPayload() {
     transport:      isTravel ? (document.querySelector('input[name="transport"]:checked')?.value || "recommend") : undefined,
     departure_date: isTravel ? (document.getElementById("departure-date")?.value || undefined) : undefined,
     date_flex:      isTravel ? (document.querySelector('input[name="date-flex"]:checked')?.value || "fixed") : undefined,
+    event_date:     type === "event" ? (document.getElementById("event-date")?.value || undefined) : undefined,
+    event_guests:   type === "event" ? (Number(document.getElementById("event-guests")?.value) || undefined) : undefined,
+    relocation_date: type === "relocation" ? (document.getElementById("relocation-date")?.value || undefined) : undefined,
+    relocation_dest: type === "relocation" ? (document.getElementById("relocation-dest")?.value || undefined) : undefined,
     priority,
     options: {
       alerts:         el.alerts?.checked ?? true,
@@ -1414,24 +1420,26 @@ function selectPlan(planId) {
 
   el.detailCard.innerHTML = `
     <div class="detail-body">
-      <div class="detail-top">
-        <div>
-          <div class="detail-name">${plan.name}</div>
-          <div class="detail-desc">${plan.explanation}</div>
+      <div class="detail-hero">
+        <div class="detail-hero-left">
+          <div class="detail-plan-badge">${plan.name}</div>
+          <div class="detail-hero-price">${money(plan.total_cost)}</div>
+          <div class="detail-delta-pill" style="background:${over?"color-mix(in srgb,var(--rose) 12%,transparent)":"color-mix(in srgb,var(--green) 12%,transparent)"};color:${over?"var(--rose)":"var(--green-dk)"}">${over?"↑":"↓"} ${plan.budget_delta_label}</div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div class="detail-price">${money(plan.total_cost)}</div>
-          <div class="detail-delta" style="color:${over?"var(--rose)":"var(--green)"}">${plan.budget_delta_label}</div>
-        </div>
+        <div class="detail-hero-desc">${plan.explanation}</div>
       </div>
-      <div class="detail-cols">
-        <div class="detail-section">
-          <div class="detail-sec-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            Cost breakdown
-            <span style="font-size:.68rem;font-weight:500;color:var(--muted);background:var(--border);padding:2px 7px;border-radius:20px;white-space:nowrap">Estimated · compare live prices →</span>
-          </div>
-          <div class="bucket-list">
-            ${plan.cost_breakdown.map((b,i)=>{
+
+      <div class="detail-tradeoffs-bar">
+        ${plan.tradeoffs.map(t=>`<div class="dtb-item"><span class="dtb-arrow">→</span>${t}</div>`).join("")}
+      </div>
+
+      <div class="detail-breakdown-full">
+        <div class="detail-sec-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          Cost breakdown
+          <span class="breakdown-live-tag">Live prices</span>
+        </div>
+        <div class="bucket-grid">
+          ${plan.cost_breakdown.map((b,i)=>{
               const pct = plan.total_cost > 0 ? Math.round(b.amount / plan.total_cost * 100) : 0;
               const planType = state.lastResult?.constraints?.type || state.type;
               const goal = state.lastResult?.constraints?.goal || "";
@@ -1540,23 +1548,17 @@ function selectPlan(planId) {
                       : ""}
                    </div>`
                 : "";
-              return `<div class="bucket-row" style="animation-delay:${i*45}ms">
-                <div class="bucket-row-top"><span>${b.label} ${liveBadge}</span><strong>${money(b.amount)}</strong></div>
+              return `<div class="bucket-card" style="animation-delay:${i*45}ms">
+                <div class="bucket-card-top">
+                  <div class="bucket-card-label">${b.label} ${liveBadge}</div>
+                  <div class="bucket-card-amount">${money(b.amount)}</div>
+                </div>
                 <div class="bucket-bar-track"><div class="bucket-bar-fill" style="width:${pct}%"></div></div>
                 ${liveRow}
                 ${specificCard}
                 ${linksHtml}
               </div>`;
             }).join("")}
-          </div>
-        </div>
-        <div style="display:grid;gap:14px;align-content:start">
-          <div class="detail-section">
-            <div class="detail-sec-label">Trade-offs</div>
-            <div class="tradeoff-list">
-              ${plan.tradeoffs.map((t)=>`<div class="tradeoff-item">${t}</div>`).join("")}
-            </div>
-          </div>
         </div>
       </div>
       ${renderTravelPackages()}
