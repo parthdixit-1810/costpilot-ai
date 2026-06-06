@@ -58,9 +58,9 @@ function getBookingLinks(type, bucketLabel, goal, bucketAmount) {
     ];
     if (bucketLabel === "Stay") return [
       B("MakeMyTrip", `https://www.makemytrip.com/hotels/${dest}-hotels.html`),
-      B("OYO", `https://www.oyorooms.com/search?location=${encodeURIComponent(destUp)}&budget_max=${hi}`),
-      B("Booking.com", `https://www.booking.com/search.html?ss=${encodeURIComponent(destUp)}&price=1-${hi}`),
-      B("Agoda", `https://www.agoda.com/search?city=${encodeURIComponent(destUp)}&maxPrice=${hi}`),
+      B("OYO", `https://www.oyorooms.com/search?location=${encodeURIComponent(destUp)}`),
+      B("Booking.com", `https://www.booking.com/search.html?ss=${encodeURIComponent(destUp)}`),
+      B("Agoda", `https://www.agoda.com/search?city=${encodeURIComponent(destUp)}`),
       B("Treebo", `https://www.treebo.com/search/?location=${encodeURIComponent(destUp)}`),
       B("FabHotels", `https://www.fabhotels.com/search?city=${encodeURIComponent(destUp)}`),
       B("Airbnb", `https://www.airbnb.co.in/s/${encodeURIComponent(destUp)}/homes`),
@@ -87,22 +87,22 @@ function getBookingLinks(type, bucketLabel, goal, bucketAmount) {
   if (type === "gadget") {
     const q = goalEnc;
     if (bucketLabel === "Device") return [
-      B("Amazon", `https://www.amazon.in/s?k=${q}&rh=p_36%3A${lo*100}-${hi*100}`),
-      B("Flipkart", `https://www.flipkart.com/search?q=${q}&p%5B%5D=facets.price_range.from%3D${lo}&p%5B%5D=facets.price_range.to%3D${hi}`),
-      B("Croma", `https://www.croma.com/searchB?q=${q}`),
-      B("Reliance Digital", `https://www.reliancedigital.in/search?q=${q}`),
-      B("Vijay Sales", `https://www.vijaysales.com/search/${q}`),
-      B("Tata Cliq", `https://www.tatacliq.com/search/?searchCategory=all&text=${q}`),
+      B("Amazon",          `https://www.amazon.in/s?k=${q}`),
+      B("Flipkart",        `https://www.flipkart.com/search?q=${q}`),
+      B("Croma",           `https://www.croma.com/searchB?q=${q}`),
+      B("Reliance Digital",`https://www.reliancedigital.in/search?q=${q}`),
+      B("Vijay Sales",     `https://www.vijaysales.com/search/${q}`),
+      B("Tata Cliq",       `https://www.tatacliq.com/search/?searchCategory=all&text=${q}`),
     ];
     if (bucketLabel === "Warranty") return [
-      B("Flipkart", `https://www.flipkart.com/search?q=${q}+extended+warranty`),
-      B("Amazon", `https://www.amazon.in/s?k=${q}+protection+plan`),
-      B("Croma Care", `https://www.croma.com/extended-warranty`),
+      B("Flipkart",   `https://www.flipkart.com/search?q=${q}+extended+warranty`),
+      B("Amazon",     `https://www.amazon.in/s?k=${q}+protection+plan`),
+      B("Croma Care", `https://www.croma.com/croma-care`),
     ];
     if (bucketLabel === "Accessories") return [
-      B("Amazon", `https://www.amazon.in/s?k=${q}+accessories&rh=p_36%3A${lo*100}-${hi*100}`),
+      B("Amazon",   `https://www.amazon.in/s?k=${q}+accessories`),
       B("Flipkart", `https://www.flipkart.com/search?q=${q}+accessories`),
-      B("Boat", `https://www.boat-lifestyle.com/`),
+      B("Boat",     `https://www.boat-lifestyle.com/`),
     ];
   }
 
@@ -126,8 +126,8 @@ function getBookingLinks(type, bucketLabel, goal, bucketAmount) {
       B("IKEA", `https://www.ikea.com/in/en/`),
       B("Pepperfry", `https://www.pepperfry.com/`),
       B("Urban Ladder", `https://www.urbanladder.com/`),
-      B("Amazon Furniture", `https://www.amazon.in/s?k=furniture&rh=p_36%3A${lo*100}-${hi*100}`),
-      B("Flipkart Furniture", `https://www.flipkart.com/search?q=furniture&p%5B%5D=facets.price_range.from%3D${lo}&p%5B%5D=facets.price_range.to%3D${hi}`),
+      B("Amazon Furniture", `https://www.amazon.in/s?k=furniture`),
+      B("Flipkart Furniture", `https://www.flipkart.com/search?q=furniture`),
     ];
     if (bucketLabel === "Commute") return [
       B("Ola", `https://www.olacabs.com/`),
