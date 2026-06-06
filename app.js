@@ -43,27 +43,53 @@ function getBookingLinks(type, bucketLabel, goal, bucketAmount) {
 
   const B = (label, url) => ({ label, url });
 
+  // Travel date helpers
+  const depDate   = document.getElementById("departure-date")?.value || "";   // YYYY-MM-DD
+  const duration  = Number(c.duration || state.lastResult?.constraints?.duration || 3);
+  const retDateObj= depDate ? (() => { const d = new Date(depDate); d.setDate(d.getDate() + duration); return d; })() : null;
+  const retDate   = retDateObj ? retDateObj.toISOString().split("T")[0] : "";
+  // Site-specific date formats
+  const ddmmyyyy  = (iso) => iso ? iso.split("-").reverse().join("/") : "";          // DD/MM/YYYY
+  const mmddyyyy  = (iso) => { if (!iso) return ""; const [y,m,d]=iso.split("-"); return `${m}${d}${y}`; }; // MMDDYYYY for MMT
+  const travellers= Number(c.travellers || 1);
+
   if (type === "travel") {
     const originUp = (c.origin || "Delhi");
     const destUp   = dest.replace(/-/g, " ").replace(/\b\w/g, x => x.toUpperCase());
     if (bucketLabel === "Transit") return [
-      B("MakeMyTrip", `https://www.makemytrip.com/flights/${originUp}-to-${destUp}.html`),
-      B("Cleartrip", `https://www.cleartrip.com/flights/results?adults=1&childs=0&infants=0&depart_date=&from=${originUp}&to=${destUp}&intl=n&airline=&page=loaded`),
-      B("EaseMyTrip", `https://www.easemytrip.com/flights/search?org=${originUp}&dest=${destUp}&dDate=&isNearByAirport=false&tripType=O&adult=1&child=0&infant=0&cls=Economy`),
-      B("GoIbibo", `https://www.goibibo.com/flights/search/${originUp}-to-${destUp}-cheap-flights/`),
-      B("Ixigo Flights", `https://www.ixigo.com/flight/${originUp}-to-${destUp}/flights-from-${origin}-to-${dest}`),
-      B("RedBus", `https://www.redbus.in/bus-tickets/${origin}-to-${dest}`),
-      B("AbhiBus", `https://www.abhibus.com/bus_search/${originUp}-to-${destUp}/`),
+      B("MakeMyTrip", depDate
+        ? `https://www.makemytrip.com/flights/${originUp}-to-${destUp}.html?&itinerary=${originUp}-${destUp}-${mmddyyyy(depDate)}&tripType=O&paxType=A-${travellers}_C-0_I-0&cabinClass=E`
+        : `https://www.makemytrip.com/flights/${originUp}-to-${destUp}.html`),
+      B("Cleartrip", depDate
+        ? `https://www.cleartrip.com/flights/results?adults=${travellers}&childs=0&infants=0&depart_date=${ddmmyyyy(depDate)}&from=${originUp}&to=${destUp}&intl=n&page=loaded`
+        : `https://www.cleartrip.com/flights/results?adults=1&from=${originUp}&to=${destUp}`),
+      B("EaseMyTrip", depDate
+        ? `https://www.easemytrip.com/flights/search?org=${originUp}&dest=${destUp}&dDate=${depDate}&isNearByAirport=false&tripType=O&adult=${travellers}&child=0&infant=0&cls=Economy`
+        : `https://www.easemytrip.com/flights/search?org=${originUp}&dest=${destUp}&tripType=O&adult=1&cls=Economy`),
+      B("GoIbibo", depDate
+        ? `https://www.goibibo.com/flights/search/?source=${originUp}&destination=${destUp}&dateofdeparture=${depDate.replace(/-/g,"")}&adults=${travellers}&children=0&infants=0&seatingclass=E`
+        : `https://www.goibibo.com/flights/search/${originUp}-to-${destUp}-cheap-flights/`),
+      B("Ixigo", `https://www.ixigo.com/flight/${origin}-to-${dest}/flights-from-${origin}-to-${dest}${depDate ? `?date=${depDate}` : ""}`),
+      B("RedBus", `https://www.redbus.in/bus-tickets/${origin}-to-${dest}${depDate ? `?doj=${ddmmyyyy(depDate)}` : ""}`),
       B("IRCTC Trains", `https://www.irctc.co.in/nget/train-search`),
     ];
     if (bucketLabel === "Stay") return [
-      B("MakeMyTrip", `https://www.makemytrip.com/hotels/${dest}-hotels.html`),
-      B("OYO", `https://www.oyorooms.com/search?location=${encodeURIComponent(destUp)}`),
-      B("Booking.com", `https://www.booking.com/search.html?ss=${encodeURIComponent(destUp)}`),
-      B("Agoda", `https://www.agoda.com/search?city=${encodeURIComponent(destUp)}`),
-      B("Treebo", `https://www.treebo.com/search/?location=${encodeURIComponent(destUp)}`),
-      B("FabHotels", `https://www.fabhotels.com/search?city=${encodeURIComponent(destUp)}`),
-      B("Airbnb", `https://www.airbnb.co.in/s/${encodeURIComponent(destUp)}/homes`),
+      B("Booking.com", depDate && retDate
+        ? `https://www.booking.com/search.html?ss=${encodeURIComponent(destUp)}&checkin=${depDate}&checkout=${retDate}&group_adults=${travellers}`
+        : `https://www.booking.com/search.html?ss=${encodeURIComponent(destUp)}`),
+      B("MakeMyTrip", depDate && retDate
+        ? `https://www.makemytrip.com/hotels/hotel-listing/?checkin=${mmddyyyy(depDate)}&checkout=${mmddyyyy(retDate)}&city=${encodeURIComponent(destUp)}&roomcount=1&adultscount=${travellers}`
+        : `https://www.makemytrip.com/hotels/${dest}-hotels.html`),
+      B("OYO", depDate && retDate
+        ? `https://www.oyorooms.com/search?location=${encodeURIComponent(destUp)}&checkin=${depDate}&checkout=${retDate}`
+        : `https://www.oyorooms.com/search?location=${encodeURIComponent(destUp)}`),
+      B("Agoda", depDate && retDate
+        ? `https://www.agoda.com/search?city=${encodeURIComponent(destUp)}&checkIn=${depDate}&checkOut=${retDate}&adults=${travellers}`
+        : `https://www.agoda.com/search?city=${encodeURIComponent(destUp)}`),
+      B("Airbnb", depDate && retDate
+        ? `https://www.airbnb.co.in/s/${encodeURIComponent(destUp)}/homes?checkin=${depDate}&checkout=${retDate}&adults=${travellers}`
+        : `https://www.airbnb.co.in/s/${encodeURIComponent(destUp)}/homes`),
+      B("Treebo", `https://www.treebo.com/search/?location=${encodeURIComponent(destUp)}${depDate ? `&checkin=${depDate}&checkout=${retDate}` : ""}`),
     ];
     if (bucketLabel === "Food") return [
       B("Zomato", `https://www.zomato.com/${citySlug}/restaurants`),
@@ -821,6 +847,15 @@ function setType(type) {
   updateBudget();
   el.intentChip.textContent = TYPE_LABELS[type];
   document.querySelectorAll(".travel-only").forEach(el => el.style.display = type === "travel" ? "" : "none");
+
+  // Set default departure date if not already set
+  const depEl = document.getElementById("departure-date");
+  if (depEl && !depEl.value) {
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    depEl.min = tomorrow.toISOString().split("T")[0];
+    const twoWeeks = new Date(); twoWeeks.setDate(twoWeeks.getDate() + 14);
+    depEl.value = twoWeeks.toISOString().split("T")[0];
+  }
   document.querySelectorAll(".event-only").forEach(el => el.style.display = type === "event" ? "" : "none");
   document.querySelectorAll(".relocation-only").forEach(el => el.style.display = type === "relocation" ? "" : "none");
 
@@ -1977,7 +2012,16 @@ function renderLifeBudgetHint() {
   });
 }
 
-// Re-render hint when type changes or view opens
+// Set departure date defaults once on load
+(() => {
+  const td = document.getElementById("departure-date");
+  if (!td) return;
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  td.min = tomorrow.toISOString().split("T")[0];
+  const twoWeeks = new Date(); twoWeeks.setDate(twoWeeks.getDate() + 14);
+  td.value = twoWeeks.toISOString().split("T")[0];
+})();
+
 document.addEventListener("viewchange:plan", renderLifeBudgetHint);
 document.querySelectorAll(".persona-btn").forEach(btn => {
   btn.addEventListener("click", () => setTimeout(renderLifeBudgetHint, 0));
