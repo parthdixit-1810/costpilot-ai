@@ -86,14 +86,41 @@ function getBookingLinks(type, bucketLabel, goal, bucketAmount) {
 
   if (type === "gadget") {
     const q = goalEnc;
-    if (bucketLabel === "Device") return [
-      B("Amazon",          `https://www.amazon.in/s?k=${q}`),
-      B("Flipkart",        `https://www.flipkart.com/search?q=${q}`),
-      B("Croma",           `https://www.croma.com/searchB?q=${q}`),
-      B("Reliance Digital",`https://www.reliancedigital.in/search?q=${q}`),
-      B("Vijay Sales",     `https://www.vijaysales.com/search/${q}`),
-      B("Tata Cliq",       `https://www.tatacliq.com/search/?searchCategory=all&text=${q}`),
-    ];
+    if (bucketLabel === "Device") {
+      // Use live model direct URLs if available
+      const plans = state.lastResult?.plans || [];
+      const models = plans.flatMap(p => p.cost_breakdown || [])
+        .find(b => b.label === "Device")?.live_models || [];
+      if (models.length) {
+        const links = [];
+        const seen = new Set();
+        for (const m of models) {
+          if (m.lowest_url && m.lowest_site && !seen.has(m.lowest_site)) {
+            links.push(B(`${m.lowest_site} — ${m.name}`, m.lowest_url));
+            seen.add(m.lowest_site);
+          }
+        }
+        // Fill remaining sites with search fallback
+        const fallbacks = [
+          ["Amazon",          `https://www.amazon.in/s?k=${q}`],
+          ["Flipkart",        `https://www.flipkart.com/search?q=${q}`],
+          ["Croma",           `https://www.croma.com/searchB?q=${q}`],
+          ["Reliance Digital",`https://www.reliancedigital.in/search?q=${q}`],
+        ];
+        for (const [label, url] of fallbacks) {
+          if (!seen.has(label)) links.push(B(label, url));
+        }
+        return links.slice(0, 6);
+      }
+      return [
+        B("Amazon",          `https://www.amazon.in/s?k=${q}`),
+        B("Flipkart",        `https://www.flipkart.com/search?q=${q}`),
+        B("Croma",           `https://www.croma.com/searchB?q=${q}`),
+        B("Reliance Digital",`https://www.reliancedigital.in/search?q=${q}`),
+        B("Vijay Sales",     `https://www.vijaysales.com/search/${q}`),
+        B("Tata Cliq",       `https://www.tatacliq.com/search/?searchCategory=all&text=${q}`),
+      ];
+    }
     if (bucketLabel === "Warranty") return [
       B("Flipkart",   `https://www.flipkart.com/search?q=${q}+extended+warranty`),
       B("Amazon",     `https://www.amazon.in/s?k=${q}+protection+plan`),
