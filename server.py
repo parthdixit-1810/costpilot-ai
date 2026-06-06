@@ -435,6 +435,59 @@ def _parse_llm_text(text: str) -> dict[str, Any]:
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 
+# Key rotation: reads GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, ...
+def _all_gemini_keys() -> list[str]:
+    keys = []
+    primary = os.getenv("GEMINI_API_KEY", "")
+    if primary:
+        keys.append(primary)
+    i = 2
+    while True:
+        k = os.getenv(f"GEMINI_API_KEY_{i}", "")
+        if not k:
+            break
+        keys.append(k)
+        i += 1
+    return keys
+
+_key_index = 0
+_key_lock  = __import__("threading").Lock()
+
+def _next_gemini_key() -> str | None:
+    """Round-robin across all configured Gemini API keys."""
+    global _key_index
+    keys = _all_gemini_keys()
+    if not keys:
+        return None
+    with _key_lock:
+        key = keys[_key_index % len(keys)]
+        _key_index += 1
+    return key
+
+def _gemini_request(url_template: str, body_bytes: bytes, tried: set | None = None) -> bytes | None:
+    """POST to Gemini, rotating keys on 429. Returns raw response bytes or None."""
+    tried = tried or set()
+    keys  = _all_gemini_keys()
+    if not keys:
+        return None
+    for key in keys:
+        if key in tried:
+            continue
+        url = url_template.format(model=GEMINI_MODEL, key=key)
+        req = urllib.request.Request(url, data=body_bytes,
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                print(f"[gemini] key ...{key[-6:]} quota exceeded, trying next", flush=True)
+                tried.add(key)
+                continue
+            raise
+    print("[gemini] all keys quota exceeded", flush=True)
+    return None
+
 def _extract_destination(goal: str) -> str:
     """Pull destination city from free-text goal."""
     import re
@@ -448,19 +501,18 @@ def _extract_destination(goal: str) -> str:
 
 def _gemini_raw_text(prompt: str, max_tokens: int = 1000) -> str | None:
     """Call Gemini with Google Search grounding; return raw text or None."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    if not _all_gemini_keys():
         return None
-    url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
     body = json.dumps({
         "tools": [{"google_search": {}}],
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens, "thinkingConfig": {"thinkingBudget": 0}},
     }).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = json.loads(resp.read())
+        raw = _gemini_request(GEMINI_API_URL, body)
+        if not raw:
+            return None
+        data  = json.loads(raw)
         parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
         return next((p.get("text","") for p in parts if p.get("text")), "").strip()
     except Exception as e:
@@ -610,12 +662,9 @@ def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800,
     If response_schema is provided, uses Gemini's native responseSchema enforcement.
     If json_schema is a non-empty string, embeds it in the prompt (legacy path).
     Otherwise raw_text is the full prompt."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    if not _all_gemini_keys():
         return None
-    url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
     if response_schema:
-        # Native schema enforcement — just send the prompt, schema is in generationConfig
         prompt = raw_text
     elif json_schema:
         prompt = (
@@ -638,12 +687,13 @@ def _gemini_to_json(raw_text: str, json_schema: str, max_tokens: int = 800,
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": gen_config,
     }).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = json.loads(resp.read())
+        raw = _gemini_request(GEMINI_API_URL, body)
+        if not raw:
+            return None
+        data  = json.loads(raw)
         parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        text = next((p.get("text","") for p in parts if p.get("text")), "").strip()
+        text  = next((p.get("text","") for p in parts if p.get("text")), "").strip()
         for fence in ("```json", "```"):
             if text.startswith(fence):
                 text = text[len(fence):]
@@ -1075,11 +1125,9 @@ def fetch_real_prices(p: dict[str, Any]) -> dict[str, Any] | None:
     return result
 
 def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    if not _all_gemini_keys():
         return None
 
-    url  = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
     body = json.dumps({
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"parts": [{"text": _user_msg(p)}]}],
@@ -1091,21 +1139,18 @@ def call_gemini(p: dict[str, Any]) -> dict[str, Any] | None:
         },
     }).encode()
 
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read())
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        raw = _gemini_request(GEMINI_API_URL, body)
+        if not raw:
+            return None
+        data   = json.loads(raw)
+        text   = data["candidates"][0]["content"]["parts"][0]["text"]
         parsed = _parse_llm_text(text)
         parsed["mode"]  = "gemini"
         parsed["model"] = GEMINI_MODEL
         return parsed
     except json.JSONDecodeError as e:
         print(f"[gemini] JSON parse error: {e}", flush=True)
-        return None
-    except urllib.error.HTTPError as e:
-        body_text = e.read().decode(errors="replace")
-        print(f"[gemini] HTTP {e.code}: {body_text[:200]}", flush=True)
         return None
     except Exception as e:
         print(f"[gemini] error: {e}", flush=True)
@@ -1172,12 +1217,14 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         if self.path == "/api/health":
             has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
-            has_gemini = bool(os.getenv("GEMINI_API_KEY"))
+            gemini_keys = _all_gemini_keys()
+            has_gemini  = bool(gemini_keys)
             self.send_json({
                 "ok": True,
                 "llm_configured": has_claude or has_gemini,
                 "provider": "claude" if has_claude else ("gemini" if has_gemini else "none"),
                 "model": MODEL if has_claude else (GEMINI_MODEL if has_gemini else "local"),
+                "gemini_keys": len(gemini_keys),
                 "routes": ["/api/health", "/api/plan", "/api/history"],
             })
             return
@@ -1275,11 +1322,12 @@ def main():
     os.chdir(ROOT)
     init_db()
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
-    has_gemini = bool(os.getenv("GEMINI_API_KEY"))
-    db_size    = DB_PATH.stat().st_size if DB_PATH.exists() else 0
+    has_claude  = bool(os.getenv("ANTHROPIC_API_KEY"))
+    gemini_keys = _all_gemini_keys()
+    has_gemini  = bool(gemini_keys)
+    db_size     = DB_PATH.stat().st_size if DB_PATH.exists() else 0
     if has_claude:   ai_label = f"Claude {MODEL}"
-    elif has_gemini: ai_label = f"Gemini {GEMINI_MODEL}"
+    elif has_gemini: ai_label = f"Gemini {GEMINI_MODEL} ({len(gemini_keys)} key{'s' if len(gemini_keys)>1 else ''})"
     else:            ai_label = "Local optimizer  (add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env)"
     print(f"\n  CostPilot AI  →  http://localhost:{port}")
     print(f"  AI backend    →  {ai_label}")
