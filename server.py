@@ -879,6 +879,7 @@ def _mock_gadget_prices(goal: str, budget: int) -> dict:
     is_phone    = any(w in g for w in ["phone","mobile","iphone","samsung","oneplus"])
     is_tablet   = any(w in g for w in ["tablet","ipad"])
     is_headphone= any(w in g for w in ["headphone","earphone","airpod","earbuds"])
+    is_gaming   = any(w in g for w in ["gaming","game","rtx","gtx","nvidia","amd rx","rgb"])
     b = budget
 
     if is_phone:
@@ -905,7 +906,81 @@ def _mock_gadget_prices(goal: str, budget: int) -> dict:
              "pros":["Best ANC in class","Excellent call quality","Lightweight"],"cons":["Expensive","No IP rating"],
              "card_offers":[{"bank":"ICICI","card":"Credit Card","offer":"₹2000 instant discount","max_discount":2000,"site":"Croma"}]},
         ]
-    else:  # laptop default
+    elif is_gaming:
+        # Gaming laptops — pick based on budget
+        if b >= 120000:
+            models = [
+                {"name":"ASUS ROG Strix G16","variant":"Intel i7-13650HX, 16GB DDR5, RTX 4060, 512GB SSD","tag":"Best value gaming",
+                 "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=asus+rog+strix+g16+rtx+4060",
+                 "prices":{"Amazon":124990,"Flipkart":126990,"Croma":129990,"Reliance Digital":127000,"TataCliq":125500},
+                 "key_specs":["i7-13650HX","16GB DDR5","RTX 4060 8GB","16\" FHD 165Hz","512GB NVMe","Win11"],
+                 "pros":["Excellent 1080p gaming performance","MUX switch","Good cooling"],
+                 "cons":["Runs warm under sustained load","Heavy at 2.3kg"],
+                 "card_offers":[{"bank":"HDFC","card":"Credit Card","offer":"5% off","max_discount":3000,"site":"Amazon"}]},
+                {"name":"Lenovo LOQ 15IRX9","variant":"Intel i5-13450HX, 16GB, RTX 4060, 512GB SSD","tag":"Budget gaming pick",
+                 "image_url":"","lowest_site":"Flipkart","lowest_url":"https://www.flipkart.com/search?q=lenovo+loq+rtx+4060",
+                 "prices":{"Flipkart":109990,"Amazon":111990,"Croma":114990,"Reliance Digital":113000,"TataCliq":110500},
+                 "key_specs":["i5-13450HX","16GB DDR5","RTX 4060 8GB","15.6\" FHD 144Hz","512GB NVMe","Win11"],
+                 "pros":["RTX 4060 at competitive price","144Hz display","Decent battery"],
+                 "cons":["Throttles under extreme load","Plastic chassis"],
+                 "card_offers":[]},
+                {"name":"MSI Cyborg 15","variant":"Intel i7-12650H, 16GB, RTX 4060, 512GB SSD","tag":"Stylish gaming",
+                 "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=msi+cyborg+15+rtx+4060",
+                 "prices":{"Amazon":116990,"Flipkart":118990,"Croma":120990,"Reliance Digital":119000,"TataCliq":117500},
+                 "key_specs":["i7-12650H","16GB DDR5","RTX 4060 8GB","15.6\" FHD 144Hz","512GB NVMe","Win11"],
+                 "pros":["Unique transparent design","Good port selection","Solid gaming performance"],
+                 "cons":["Shorter battery life","Screen could be brighter"],
+                 "card_offers":[{"bank":"SBI","card":"Credit Card","offer":"₹2000 instant off","max_discount":2000,"site":"Croma"}]},
+            ]
+        elif b >= 80000:
+            models = [
+                {"name":"ASUS TUF Gaming F15","variant":"Intel i5-13500H, 16GB, RTX 4060, 512GB SSD","tag":"Best value gaming",
+                 "image_url":"","lowest_site":"Flipkart","lowest_url":"https://www.flipkart.com/search?q=asus+tuf+f15+rtx+4060",
+                 "prices":{"Flipkart":82990,"Amazon":84990,"Croma":86990,"Reliance Digital":85500,"TataCliq":83500},
+                 "key_specs":["i5-13500H","16GB DDR4","RTX 4060 8GB","15.6\" FHD 144Hz","512GB NVMe","Win11"],
+                 "pros":["Excellent price-to-performance","MIL-STD durability","Good cooling"],
+                 "cons":["Display colour accuracy average","Heavy charger"],
+                 "card_offers":[{"bank":"HDFC","card":"Credit Card","offer":"10% off up to ₹3000","max_discount":3000,"site":"Flipkart"}]},
+                {"name":"Lenovo IdeaPad Gaming 3","variant":"Ryzen 5 7535HS, 16GB, RTX 4050, 512GB SSD","tag":"Budget gaming pick",
+                 "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=lenovo+ideapad+gaming+3+rtx+4050",
+                 "prices":{"Amazon":72990,"Flipkart":73990,"Croma":75990,"Reliance Digital":74500,"TataCliq":73500},
+                 "key_specs":["Ryzen 5 7535HS","16GB DDR5","RTX 4050 6GB","15.6\" FHD 144Hz","512GB NVMe","Win11"],
+                 "pros":["Great at 1080p medium-high settings","Affordable","16GB RAM standard"],
+                 "cons":["RTX 4050 limited at ultra settings","Dim display"],
+                 "card_offers":[]},
+                {"name":"HP Victus 16","variant":"Intel i5-13420H, 16GB, RTX 4060, 512GB SSD","tag":"Reliable gaming",
+                 "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=hp+victus+16+rtx+4060",
+                 "prices":{"Amazon":84990,"Flipkart":85990,"Croma":87990,"Reliance Digital":86500,"TataCliq":85500},
+                 "key_specs":["i5-13420H","16GB DDR4","RTX 4060 8GB","16.1\" FHD 144Hz","512GB NVMe","Win11"],
+                 "pros":["Good display size","HP build quality","RTX 4060 at this price"],
+                 "cons":["Fan noise at load","Plastic body"],
+                 "card_offers":[{"bank":"ICICI","card":"Credit Card","offer":"5% cashback","max_discount":2500,"site":"Amazon"}]},
+            ]
+        else:  # under 80k gaming
+            models = [
+                {"name":"ASUS TUF Gaming A15","variant":"Ryzen 5 7535HS, 16GB, RTX 4050, 512GB SSD","tag":"Best value gaming",
+                 "image_url":"","lowest_site":"Flipkart","lowest_url":"https://www.flipkart.com/search?q=asus+tuf+a15+rtx+4050",
+                 "prices":{"Flipkart":69990,"Amazon":71990,"Croma":73990,"Reliance Digital":72500,"TataCliq":70500},
+                 "key_specs":["Ryzen 5 7535HS","16GB DDR5","RTX 4050 6GB","15.6\" FHD 144Hz","512GB NVMe","Win11"],
+                 "pros":["Top gaming perf under ₹70k","Great battery for gaming laptop","MIL-STD build"],
+                 "cons":["Display not the brightest","No Thunderbolt"],
+                 "card_offers":[{"bank":"HDFC","card":"Credit Card","offer":"10% off","max_discount":2000,"site":"Flipkart"}]},
+                {"name":"Lenovo IdeaPad Gaming 3","variant":"Ryzen 5 6600H, 16GB, RTX 3050, 512GB SSD","tag":"Entry gaming pick",
+                 "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=lenovo+ideapad+gaming+3+rtx+3050",
+                 "prices":{"Amazon":59990,"Flipkart":60990,"Croma":62990,"Reliance Digital":61500,"TataCliq":60500},
+                 "key_specs":["Ryzen 5 6600H","16GB DDR5","RTX 3050 4GB","15.6\" FHD 120Hz","512GB NVMe","Win11"],
+                 "pros":["Cheapest dedicated GPU laptop","Good build","Upgradeable RAM/SSD"],
+                 "cons":["RTX 3050 limited in AAA games","Dim 250nits display"],
+                 "card_offers":[]},
+                {"name":"HP Victus 15","variant":"Ryzen 5 5600H, 8GB, GTX 1650, 512GB SSD","tag":"Starter gaming",
+                 "image_url":"","lowest_site":"Amazon","lowest_url":"https://www.amazon.in/s?k=hp+victus+15+gtx+1650",
+                 "prices":{"Amazon":54990,"Flipkart":55990,"Croma":57990,"Reliance Digital":56500,"TataCliq":55500},
+                 "key_specs":["Ryzen 5 5600H","8GB DDR4","GTX 1650 4GB","15.6\" FHD 144Hz","512GB SSD","Win11"],
+                 "pros":["144Hz display","HP brand reliability","Decent 1080p gaming at medium"],
+                 "cons":["Only 8GB RAM","GTX 1650 aging quickly","No ray tracing"],
+                 "card_offers":[{"bank":"SBI","card":"Debit Card","offer":"5% cashback","max_discount":1500,"site":"Amazon"}]},
+            ]
+    else:  # generic laptop default
         models = [
             {"name":"Lenovo IdeaPad Slim 5","variant":"Intel i5-12th Gen, 16GB RAM, 512GB SSD","tag":"Best value",
              "image_url":"","lowest_site":"Flipkart","lowest_url":"https://www.flipkart.com/laptops",
